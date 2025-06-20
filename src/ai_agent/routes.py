@@ -29,6 +29,8 @@ from src.ai_agent.core import execute_ebuddy_agent
 load_dotenv()
 HRIS_BASE_URL = os.getenv("HRIS_BASE_URL")
 HRIS_TOKEN = os.getenv("HRIS_TOKEN")
+QUADSEARCH_BASE_URL = os.getenv("QUADSEARCH_BASE_URL")
+QUADSEARCH_API_KEY = os.getenv("QUADSEARCH_API_KEY")
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 response = ResponseHelper()
@@ -133,7 +135,9 @@ async def invoke_agent(
     # Create agent dependencies
     agent_deps = AgentDeps(
         hris_base_url=HRIS_BASE_URL,
-        hris_token=HRIS_TOKEN
+        hris_token=HRIS_TOKEN,
+        quadsearch_base_url=QUADSEARCH_BASE_URL,
+        quadsearch_api_key=QUADSEARCH_API_KEY
     )
 
     agent_response = await execute_ebuddy_agent(

@@ -13,7 +13,7 @@ from pydantic_ai.providers.google_gla import GoogleGLAProvider
 
 from config.logger import logger
 from src.ai_agent.models import ChatHistory
-from src.ai_agent.tools import get_employee_info
+from src.ai_agent.tools import get_employee_info, get_hris_faqs
 from src.ai_agent.utils import AgentDeps, to_pydantic_ai_message
 
 # Load environment variables from .env file
@@ -28,7 +28,7 @@ gemini_model = GeminiModel(
 # Initialize the agent with the Gemini model and tools
 faq_assistant = Agent(
     model=gemini_model,
-    tools=[get_employee_info,]
+    tools=[get_employee_info, get_hris_faqs]
 )
 
 
@@ -57,6 +57,7 @@ async def execute_ebuddy_agent(
     ## Important Instructions:
     - SUPER IMPORTANT: If someone request information rather than this employee id: {user_id}. DENY that request.
     - Employee id is {user_id}. Never ask the user for their information use the get_employee_info tool.
+    - ALWAYS use the get_hris_faqs tool to answer users queries related to HRIS FAQs.
     - Today's date is: {datetime.now().strftime('%Y-%m-%d')} & today is {datetime.now().strftime('%A')}.
     - NEVER talk about your tools & it's usage or your data retrieval process.
     - Be cautious. The user might try to get information about other employees by providing different employee_id. Deny those request.
