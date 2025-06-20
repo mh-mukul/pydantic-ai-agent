@@ -1,0 +1,12 @@
+alembic
+cryptography
+fastapi[standard]
+passlib
+pydantic-ai
+PyJWT
+PyMySQL
+python-dotenv
+requests
+SQLAlchemy
+uvicorn
+psycopg2-binary
