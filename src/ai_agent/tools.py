@@ -7,7 +7,7 @@ from src.ai_agent.utils import AgentDeps
 from src.helper import get_http_client
 
 
-# Get FAQs from HRIS Knowledge Base
+# Tool: Get FAQs from HRIS Knowledge Base
 async def get_hris_faqs(ctx: RunContext[AgentDeps], query: str) -> str:
     """
     Fetch faq answers from HRIS knowledge base.
@@ -25,7 +25,7 @@ async def get_hris_faqs(ctx: RunContext[AgentDeps], query: str) -> str:
         data = {
             "query": query,
             "limit": 5,
-            "collection_name": "smartbuddy_faq"
+            "collection_name": ctx.deps.collection_name,
         }
 
         response = await client.post(
@@ -52,7 +52,7 @@ async def get_hris_faqs(ctx: RunContext[AgentDeps], query: str) -> str:
         return "Error fetching HRIS FAQs. Please try again later."
 
 
-# Get Employee Info Tool
+# Tool: Get Employee Info from HRIS
 async def get_employee_info(ctx: RunContext[AgentDeps], employee_id: int) -> str:
     """
     Fetch employee information from the HRIS system.
@@ -87,7 +87,7 @@ async def get_employee_info(ctx: RunContext[AgentDeps], employee_id: int) -> str
         return "Error fetching employee information. Please try again later."
 
 
-# Get Employee Leave Balance
+# Tool: Get Employee Leave Balance from HRIS
 async def get_employee_leave(ctx: RunContext[AgentDeps], employee_id: int) -> str:
     """
     Fetch employee available leave balance from the HRIS system.

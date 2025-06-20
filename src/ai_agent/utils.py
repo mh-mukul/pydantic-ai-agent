@@ -23,6 +23,7 @@ class AgentDeps:
     hris_token: str
     quadsearch_base_url: str
     quadsearch_api_key: str
+    collection_name: str = "smartbuddy_faq"
 
 
 # Fetch conversation between user and AI of a specific session

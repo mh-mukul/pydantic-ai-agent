@@ -43,7 +43,7 @@ async def get_chats(
     page: int = 1,
     limit: int = 10,
     db: Session = Depends(get_db),
-    _: None = Depends(get_api_key)
+    # _: None = Depends(get_api_key)
 ):
     # Subquery to get the minimum id (first message) per session for the user
     subquery = (
@@ -137,7 +137,8 @@ async def invoke_agent(
         hris_base_url=HRIS_BASE_URL,
         hris_token=HRIS_TOKEN,
         quadsearch_base_url=QUADSEARCH_BASE_URL,
-        quadsearch_api_key=QUADSEARCH_API_KEY
+        quadsearch_api_key=QUADSEARCH_API_KEY,
+        collection_name="smartbuddy_faq"
     )
 
     agent_response = await execute_ebuddy_agent(
