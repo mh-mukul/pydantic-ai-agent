@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class ChatInvoke(BaseModel):
-    session_id: str = Field(..., max_length=100)
+    session_id: str = Field(None, max_length=100)
     user_id: str = Field(..., max_length=255)
     query: str = Field(..., max_length=500)
 

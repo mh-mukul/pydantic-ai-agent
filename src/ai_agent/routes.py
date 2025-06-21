@@ -22,7 +22,8 @@ from src.ai_agent.schemas import (
 from src.ai_agent.utils import (
     AgentDeps,
     fetch_conversation_history,
-    save_conversation_history
+    save_conversation_history,
+    generate_session_id
 )
 from src.ai_agent.core import execute_ebuddy_agent
 
@@ -41,9 +42,9 @@ async def get_chats(
     request: Request,
     user_id: int,
     page: int = 1,
-    limit: int = 10,
+    limit: int = 20,
     db: Session = Depends(get_db),
-    # _: None = Depends(get_api_key)
+    _: None = Depends(get_api_key)
 ):
     # Subquery to get the minimum id (first message) per session for the user
     subquery = (
@@ -113,9 +114,12 @@ async def invoke_agent(
     data: ChatInvoke,
     request: Request,
     db: Session = Depends(get_db),
-    # _: None = Depends(get_api_key)
+    _: None = Depends(get_api_key)
 ):
-    session_id = data.session_id
+    if not data.session_id:
+        session_id = generate_session_id()
+    else:
+        session_id = data.session_id
     user_id = int(data.user_id)
     user_message = data.query
     start_time = datetime.now()

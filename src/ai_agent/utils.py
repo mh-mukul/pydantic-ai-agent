@@ -1,3 +1,4 @@
+from uuid import uuid4
 from datetime import datetime
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
@@ -111,3 +112,8 @@ def to_simple_message(
         msg_content = msg_data.get("content", "")
         simple_messages.append({"type": msg_type, "content": msg_content})
     return simple_messages
+
+
+def generate_session_id() -> str:
+    """Generate a unique session ID."""
+    return str(uuid4())
