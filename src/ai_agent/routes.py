@@ -55,7 +55,7 @@ async def get_chats(
     )
 
     # Main query: join with subquery to get actual records
-    query = db.query(ChatHistory).join(
+    query = ChatHistory.get_active(db).join(
         subquery, ChatHistory.id == subquery.c.min_id
     )
 
@@ -168,3 +168,25 @@ async def invoke_agent(
         "response": agent_response,
         "duration": (datetime.now() - start_time).total_seconds()
     })
+
+
+@router.delete("/{session_id}")
+async def delete_session(
+    session_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    _: None = Depends(get_api_key)
+):
+    # Delete chat history for the session
+    try:
+        db.query(ChatHistory).filter(ChatHistory.session_id == session_id).update(
+            {"is_deleted": True, "updated_at": func.now()},
+            synchronize_session=False
+        )
+        db.commit()
+    except Exception as e:
+        logger.error(f"Error deleting session {session_id}: {e}")
+        db.rollback()
+        return response.error_response(500, "Failed to delete session")
+
+    return response.success_response(200, "Session deleted successfully")
