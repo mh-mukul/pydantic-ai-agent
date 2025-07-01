@@ -46,17 +46,20 @@ async def get_chats(
     db: Session = Depends(get_db),
     _: None = Depends(get_api_key)
 ):
-    # Subquery to get the minimum id (first message) per session for the user
+    # Subquery to get the maximum id (last message) per session for the user
     subquery = (
-        db.query(func.min(ChatHistory.id).label("min_id"))
-        .filter(ChatHistory.user_id == user_id)
+        db.query(func.max(ChatHistory.id).label("max_id"))
+        .filter(
+            ChatHistory.user_id == user_id,
+            ChatHistory.message["type"].astext == "human"
+        )
         .group_by(ChatHistory.session_id)
         .subquery()
     )
 
     # Main query: join with subquery to get actual records
     query = ChatHistory.get_active(db).join(
-        subquery, ChatHistory.id == subquery.c.min_id
+        subquery, ChatHistory.id == subquery.c.max_id
     )
 
     # Count total sessions
@@ -66,7 +69,7 @@ async def get_chats(
 
     # Fetch paginated results
     data_list = (
-        query.order_by(ChatHistory.id.desc())
+        query.order_by(ChatHistory.date_time.desc())
         .offset(offset)
         .limit(limit)
         .all()
