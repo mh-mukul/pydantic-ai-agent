@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import Column, DateTime, Boolean
 
@@ -10,8 +10,8 @@ class AbstractBase(Base):
 
     is_active = Column(Boolean, default=True)
     is_deleted = Column(Boolean, default=False)
-    created_at = Column(DateTime(6), default=datetime.now)
-    updated_at = Column(DateTime(6), default=datetime.now)
+    created_at = Column(DateTime(6), default=datetime.now(timezone.utc))
+    updated_at = Column(DateTime(6), default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
     def soft_delete(self):
         self.is_active = False

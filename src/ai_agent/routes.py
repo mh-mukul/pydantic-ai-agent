@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Request, Depends
@@ -124,9 +124,8 @@ async def invoke_agent(
         session_id = generate_session_id()
     else:
         session_id = data.session_id
-    user_id = user.id
     user_message = data.query
-    start_time = datetime.now()
+    start_time = datetime.now(tz=timezone.utc)
 
     # Fetch conversation history
     history = await fetch_conversation_history(session_id, db=db)
@@ -134,7 +133,7 @@ async def invoke_agent(
     # store user's message
     await save_conversation_history(
         session_id=session_id,
-        user_id=user_id,
+        user_id=user.id,
         message={"type": "human", "content": user_message},
         date_time=start_time,
         db=db
@@ -150,27 +149,27 @@ async def invoke_agent(
     )
 
     agent_response = await execute_ebuddy_agent(
-        user_id=user_id, user_message=user_message, messages=history, agent_deps=agent_deps)
+        user=user, user_message=user_message, messages=history, agent_deps=agent_deps)
     logger.info(f"Agent response: {agent_response}")
 
     # Store agent's response
     await save_conversation_history(
         session_id=session_id,
-        user_id=user_id,
+        user_id=user.id,
         message={"type": "ai", "content": agent_response},
-        date_time=datetime.now(),
-        metadata={"duration": (datetime.now() - start_time).total_seconds()},
+        date_time=datetime.now(tz=timezone.utc),
+        metadata={"duration": (datetime.now(tz=timezone.utc) - start_time).total_seconds()},
         db=db
     )
     logger.info(
-        f"Chat history saved for session {session_id} and user {user_id}")
+        f"Chat history saved for session {session_id} and user {user.id}")
 
     # Return the response
     return response.success_response(200, "Success", data={
         "session_id": session_id,
-        "user_id": user_id,
+        "user_id": user.id,
         "response": agent_response,
-        "duration": (datetime.now() - start_time).total_seconds()
+        "duration": (datetime.now(tz=timezone.utc) - start_time).total_seconds()
     })
 
 
@@ -184,7 +183,7 @@ async def delete_session(
     # Delete chat history for the session
     try:
         db.query(ChatHistory).filter(ChatHistory.session_id == session_id).update(
-            {"is_deleted": True, "is_active": False,"updated_at": func.now()},
+            {"is_deleted": True, "is_active": False},
             synchronize_session=False
         )
         db.commit()

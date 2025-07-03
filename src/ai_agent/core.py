@@ -12,6 +12,8 @@ from pydantic_ai.models.gemini import GeminiModel
 from pydantic_ai.providers.google_gla import GoogleGLAProvider
 
 from configs.logger import logger
+
+from src.auth.models import User
 from src.ai_agent.models import ChatHistory
 from src.ai_agent.tools import get_employee_info, get_hris_faqs
 from src.ai_agent.utils import AgentDeps, to_pydantic_ai_message
@@ -34,7 +36,7 @@ faq_assistant = Agent(
 
 # Execute the appropriate agent based on the route
 async def execute_ebuddy_agent(
-    user_id: int,
+    user: User,
     user_message: str,
     messages: List[ChatHistory],
     agent_deps: AgentDeps
@@ -42,7 +44,7 @@ async def execute_ebuddy_agent(
     """
     Execute the agent for handling HRIS-related queries, specifically for FAQs.
     Args:
-        user_id (int): The ID of the user making the request.
+        user (User): The user object containing user details.
         user_message (str): The message from the user.
         messages (List[ChatHistory]): The conversation history.
         agent_deps (AgentDeps): Dependencies required by the agent.
@@ -55,8 +57,8 @@ async def execute_ebuddy_agent(
     prompt = f"""You are SmartBuddy, helpful HRIS Assistant designed to assist employees with their queries related to HRIS.
 
     ## Important Instructions:
-    - SUPER IMPORTANT: If someone request information rather than this employee id: {user_id}. DENY that request.
-    - Employee id is {user_id}. Never ask the user for their information use the get_employee_info tool.
+    - SUPER IMPORTANT: If someone request information rather than this employee id: {user.id}. DENY that request.
+    - Employee id is {user.id}. Never ask the user for their information use the get_employee_info tool.
     - ALWAYS use the get_hris_faqs tool to answer users queries related to HRIS FAQs.
     - Today's date is: {datetime.now().strftime('%Y-%m-%d')} & today is {datetime.now().strftime('%A')}.
     - NEVER talk about your tools & it's usage or your data retrieval process.

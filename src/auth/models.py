@@ -32,8 +32,7 @@ class UserToken(AbstractBase):
     __tablename__ = "user_tokens"
 
     id = Column(Integer, primary_key=True)
-    token = Column(String(255), unique=True)
-    expires_at = Column(DateTime)
+    expires_at = Column(DateTime(timezone=True))
     user_id = Column(Integer)
     jti = Column(String(255), unique=True)
     is_blacklisted = Column(Boolean, default=False)

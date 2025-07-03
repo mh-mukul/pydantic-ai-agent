@@ -50,7 +50,7 @@ def create_refresh_token(db: Session, data: dict, jti: str, expires_delta: Optio
     to_encode.update({"exp": expire, "jti": jti, "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     # Save the refresh token to the database
-    user_token = UserToken(token=encoded_jwt, expires_at=expire,
+    user_token = UserToken(expires_at=expire,
                            user_id=to_encode.get("user_id"), jti=jti)
     db.add(user_token)
     db.commit()
@@ -83,13 +83,21 @@ def decode_refresh_token(db: Session, token: str) -> dict:
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if not db.query(UserToken).filter(
+                UserToken.jti == payload.get("jti"), UserToken.is_active == True, UserToken.is_deleted == False).first():
+            print("Token not found in database")
+            raise JWTException(401, message="Invalid token")
+        # Check if the token is blacklisted
         check_blacklist_token(db=db, jti=payload.get("jti"))
         if payload.get("type") != "refresh":
+            print("Invalid token type")
             raise JWTException(401, message="Invalid token type")
         return payload
     except jwt.ExpiredSignatureError:
+        print("Token has expired")
         raise JWTException(401, message="Token has expired")
     except jwt.InvalidTokenError:
+        print("Invalid token 1")
         raise JWTException(401, message="Invalid token")
 
 
@@ -105,6 +113,7 @@ def blacklist_token(token: str, db: Session):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except jwt.PyJWTError:
+        print("Invalid token")
         raise JWTException(
             401, message="Invalid token")
     jti = payload.get("jti")
@@ -115,6 +124,7 @@ def blacklist_token(token: str, db: Session):
         db_token.is_blacklisted = True
         db.commit()
     else:
+        print("Token not found in database")
         raise JWTException(401, message="Invalid token")
 
 
@@ -122,6 +132,7 @@ def check_blacklist_token(db: Session, jti: str):
     db_token = db.query(UserToken).filter(
         UserToken.jti == jti, UserToken.is_blacklisted == True).first()
     if db_token:
+        print("Token is blacklisted")
         raise JWTException(401, message="Token has been blacklisted")
     else:
         return True

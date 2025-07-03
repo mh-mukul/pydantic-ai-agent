@@ -11,7 +11,7 @@ class ChatHistory(AbstractBase):
     session_id = Column(String(100), nullable=False)
     user_id = Column(Integer, nullable=False)
     message = Column(JSONB, nullable=False)
-    date_time = Column(DateTime, nullable=False)
+    date_time = Column(DateTime(timezone=True), nullable=False)
     chat_metadata = Column(JSONB, nullable=True)
 
     def __repr__(self):
