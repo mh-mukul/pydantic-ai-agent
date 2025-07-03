@@ -12,8 +12,8 @@ from pydantic_ai.messages import (
     TextPart
 )
 
-from config.logger import logger
-from config.database import get_db
+from configs.logger import logger
+from configs.database import get_db
 from src.ai_agent.models import ChatHistory
 
 
@@ -31,8 +31,9 @@ class AgentDeps:
 async def fetch_conversation_history(session_id: str, limit: int = 10, db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
     """Fetch conversation history from DB."""
     try:
+        query = ChatHistory.get_active(db)
         data = (
-            db.query(ChatHistory)
+            query
             .filter(ChatHistory.session_id == session_id)
             .order_by(ChatHistory.date_time.desc())
             .limit(limit)

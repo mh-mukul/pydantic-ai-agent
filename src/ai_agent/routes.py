@@ -6,11 +6,12 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Request, Depends
 
-from config.logger import logger
-from config.database import get_db
-from src.helper import ResponseHelper
-from src.auth.dependencies import get_api_key
+from configs.logger import logger
+from configs.database import get_db
+from src.helpers import ResponseHelper
+from src.auth.dependencies import get_current_user
 
+from src.auth.models import User
 from src.ai_agent.models import ChatHistory
 from src.ai_agent.schemas import (
     ChatInvoke,
@@ -40,17 +41,17 @@ response = ResponseHelper()
 @router.get("")
 async def get_chats(
     request: Request,
-    user_id: int,
+    # user_id: int,
     page: int = 1,
     limit: int = 20,
     db: Session = Depends(get_db),
-    _: None = Depends(get_api_key)
+    user: User = Depends(get_current_user),
 ):
     # Subquery to get the maximum id (last message) per session for the user
     subquery = (
         db.query(func.max(ChatHistory.id).label("max_id"))
         .filter(
-            ChatHistory.user_id == user_id,
+            ChatHistory.user_id == user.id,
             ChatHistory.message["type"].astext == "human"
         )
         .group_by(ChatHistory.session_id)
@@ -102,7 +103,7 @@ async def get_session(
     session_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    _: None = Depends(get_api_key)
+    user: User = Depends(get_current_user),
 ):
     chats = ChatHistory.get_active(db).filter(
         ChatHistory.session_id == session_id).order_by(ChatHistory.date_time.asc()).all()
@@ -117,13 +118,13 @@ async def invoke_agent(
     data: ChatInvoke,
     request: Request,
     db: Session = Depends(get_db),
-    _: None = Depends(get_api_key)
+    user: User = Depends(get_current_user),
 ):
     if not data.session_id:
         session_id = generate_session_id()
     else:
         session_id = data.session_id
-    user_id = int(data.user_id)
+    user_id = user.id
     user_message = data.query
     start_time = datetime.now()
 
@@ -178,12 +179,12 @@ async def delete_session(
     session_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    _: None = Depends(get_api_key)
+    user: User = Depends(get_current_user),
 ):
     # Delete chat history for the session
     try:
         db.query(ChatHistory).filter(ChatHistory.session_id == session_id).update(
-            {"is_deleted": True, "updated_at": func.now()},
+            {"is_deleted": True, "is_active": False,"updated_at": func.now()},
             synchronize_session=False
         )
         db.commit()

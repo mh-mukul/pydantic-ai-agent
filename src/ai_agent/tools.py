@@ -2,9 +2,9 @@ import json
 
 from pydantic_ai import RunContext
 
-from config.logger import logger
+from configs.logger import logger
+from src.helpers import get_http_client
 from src.ai_agent.utils import AgentDeps
-from src.helper import get_http_client
 
 
 # Tool: Get FAQs from HRIS Knowledge Base

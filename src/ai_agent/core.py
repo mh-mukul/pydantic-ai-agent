@@ -11,7 +11,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.gemini import GeminiModel
 from pydantic_ai.providers.google_gla import GoogleGLAProvider
 
-from config.logger import logger
+from configs.logger import logger
 from src.ai_agent.models import ChatHistory
 from src.ai_agent.tools import get_employee_info, get_hris_faqs
 from src.ai_agent.utils import AgentDeps, to_pydantic_ai_message

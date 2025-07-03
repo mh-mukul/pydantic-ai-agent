@@ -3,7 +3,7 @@ from alembic import context
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
-from config.database import Base, SQLALCHEMY_DATABASE_URL
+from configs.database import Base, SQLALCHEMY_DATABASE_URL
 
 from src.auth.models import ApiKey
 from src.ai_agent.models import ChatHistory

@@ -3,9 +3,10 @@ import argparse
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from config.database import get_db
+from configs.database import get_db
+from src.auth.utils import hash_password
 
-from src.auth.models import ApiKey
+from src.auth.models import ApiKey, User
 
 
 def generate_key(db: Session = Depends(get_db)):
@@ -21,17 +22,38 @@ def generate_key(db: Session = Depends(get_db)):
         print(f"API key: {api_key.key}")
 
 
+def create_superuser(db: Session = Depends(get_db)):
+    """Creates a new superuser."""
+    name = input("Name: ")
+    email = input("Email: ")
+    phone = input("Phone: ")
+    password = input("Password: ")
+
+    if not name or not email or not phone or not password:
+        print("All fields are required.")
+        return
+    hashed_password = hash_password(password)
+
+    user = User(name=name, email=email, phone=phone,
+                password=hashed_password, is_superuser=True)
+    db.add(user)
+    db.commit()
+
+    print(f"Superuser created: ID={user.id}, Name={user.name}")
+
+
 def main():
     db = next(get_db())
     parser = argparse.ArgumentParser(description="Management Commands")
     parser.add_argument("command", help="Command to run",
-                        choices=["generate_key",])
+                        choices=["generate_key","create_superuser"])
 
     args = parser.parse_args()
 
     if args.command == "generate_key":
         generate_key(db)
-
+    elif args.command == "create_superuser":
+        create_superuser(db)
 
 if __name__ == "__main__":
     main()

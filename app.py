@@ -5,14 +5,16 @@ from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 
-from src.exception_handler import (
+from src.exception_handlers import (
     validation_exception_handler,
     general_exception_handler,
-    api_key_exception_handler
+    api_key_exception_handler,
+    jwt_exception_handler
 )
-from src.auth.exceptions import APIKeyException
-from src.helper import init_http_client, close_http_client
+from src.auth.exceptions import APIKeyException, JWTException
+from src.helpers import init_http_client, close_http_client
 
+from src.auth import routes as auth_routes
 from src.ai_agent import routes as chat_routes
 
 load_dotenv()
@@ -50,9 +52,11 @@ app.add_middleware(
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 app.add_exception_handler(APIKeyException, api_key_exception_handler)
+app.add_exception_handler(JWTException, jwt_exception_handler)
 
 
 # Include routes
+app.include_router(auth_routes.router, prefix="/api/v1")
 app.include_router(chat_routes.router, prefix="/api/v1")
 
 

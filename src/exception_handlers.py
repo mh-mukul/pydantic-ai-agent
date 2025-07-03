@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
-from src.auth.exceptions import APIKeyException
+from src.auth.exceptions import APIKeyException, JWTException
 
 app = FastAPI()
 
@@ -41,6 +41,18 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 @app.exception_handler(APIKeyException)
 async def api_key_exception_handler(request: Request, exc: APIKeyException):
+    return JSONResponse(
+        status_code=401,
+        content={
+            "status": 401,
+            "message": exc.message,
+            "data": {}
+        }
+    )
+
+
+@app.exception_handler(JWTException)
+async def jwt_exception_handler(request: Request, exc: JWTException):
     return JSONResponse(
         status_code=401,
         content={
