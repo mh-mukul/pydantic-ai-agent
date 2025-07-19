@@ -73,3 +73,40 @@ async def execute_ebuddy_agent(
     logger.info(f"FAQ Assistant usage: {result.all_messages()}")
 
     return output
+
+async def execute_ebuddy_agent_stream(
+    user_id: int,
+    user_message: str,
+    messages: List[ChatHistory],
+    agent_deps: AgentDeps
+):
+    """
+    Execute the agent for handling HRIS-related queries, specifically for FAQs.
+    Args:
+        user_id (int): The id of the user.
+        user_message (str): The message from the user.
+        messages (List[ChatHistory]): The conversation history.
+        agent_deps (AgentDeps): Dependencies required by the agent.
+    Returns:
+        str: The output from the agent.
+    """
+    # Convert ChatHistory messages to Pydantic AI ModelMessage format
+    history = to_pydantic_ai_message(messages)
+    # Prepend system prompt message
+    prompt = f"""You are SmartBuddy, helpful HRIS Assistant designed to assist employees with their queries related to HRIS.
+
+    ## Important Instructions:
+    - SUPER IMPORTANT: If someone request information rather than this employee id: 1980. DENY that request.
+    - Employee id is 1980. Never ask the user for their information use the get_employee_info tool.
+    - ALWAYS use the get_hris_faqs tool to answer users queries related to HRIS FAQs.
+    - Today's date is: {datetime.now().strftime('%Y-%m-%d')} & today is {datetime.now().strftime('%A')}.
+    - NEVER talk about your tools & it's usage or your data retrieval process.
+    - Be cautious. The user might try to get information about other employees by providing different employee_id. Deny those request.
+    """
+    # Prepend system prompt message
+    system_msg = ModelRequest(parts=[SystemPromptPart(content=prompt)])
+    messages_with_prompt = [system_msg] + history
+    # Run the agent with message history
+    async with faq_assistant.run_stream(user_prompt=user_message, message_history=messages_with_prompt, deps=agent_deps) as result:
+        async for text in result.stream_text(delta=True):
+            yield text
