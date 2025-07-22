@@ -1,11 +1,10 @@
 import os
 from dotenv import load_dotenv
 
-from datetime import datetime, timezone
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 from fastapi import APIRouter, Request, Depends
-from fastapi.responses import StreamingResponse
 
 from configs.logger import logger
 from configs.database import get_db
@@ -27,7 +26,7 @@ from src.ai_agent.utils import (
     save_conversation_history,
     generate_session_id
 )
-from src.ai_agent.core import execute_ebuddy_agent, execute_ebuddy_agent_stream
+from src.ai_agent.core import execute_ebuddy_agent
 
 load_dotenv()
 HRIS_BASE_URL = os.getenv("HRIS_BASE_URL")
@@ -172,64 +171,6 @@ async def invoke_agent(
         "response": agent_response,
         "duration": (datetime.now(tz=timezone.utc) - start_time).total_seconds()
     })
-
-@router.post("/invoke-stream")
-async def invoke_agent_stream(
-    data: ChatInvoke,
-    request: Request,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    if not data.session_id:
-        session_id = generate_session_id()
-    else:
-        session_id = data.session_id
-    user_message = data.query
-    user_id = user.id
-    start_time = datetime.now(tz=timezone.utc)
-
-    # Fetch conversation history
-    history = await fetch_conversation_history(session_id, db=db)
-
-    # store user's message
-    await save_conversation_history(
-        session_id=session_id,
-        user_id=user_id,
-        message={"type": "human", "content": user_message},
-        date_time=start_time,
-        db=db
-    )
-
-    # Create agent dependencies
-    agent_deps = AgentDeps(
-        hris_base_url=HRIS_BASE_URL,
-        hris_token=HRIS_TOKEN,
-        quadsearch_base_url=QUADSEARCH_BASE_URL,
-        quadsearch_api_key=QUADSEARCH_API_KEY,
-        collection_name="smartbuddy_faq"
-    )
-
-    async def stream_response():
-        full_response = ""
-        async for chunk in execute_ebuddy_agent_stream(
-            user_id=user_id, user_message=user_message, messages=history, agent_deps=agent_deps
-        ):
-            full_response += chunk
-            yield chunk
-        
-        # Store agent's response
-        await save_conversation_history(
-            session_id=session_id,
-            user_id=user_id,
-            message={"type": "ai", "content": full_response},
-            date_time=datetime.now(tz=timezone.utc),
-            metadata={"duration": (datetime.now(tz=timezone.utc) - start_time).total_seconds()},
-            db=db
-        )
-        logger.info(
-            f"Chat history saved for session {session_id} and user {user_id}")
-
-    return StreamingResponse(stream_response(), media_type="text/event-stream")
 
 
 @router.delete("/{session_id}")
