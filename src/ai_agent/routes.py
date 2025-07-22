@@ -26,13 +26,12 @@ from src.ai_agent.utils import (
     save_conversation_history,
     generate_session_id
 )
-from src.ai_agent.core import execute_ebuddy_agent
+from src.ai_agent.core import execute_agent
 
 load_dotenv()
-HRIS_BASE_URL = os.getenv("HRIS_BASE_URL")
-HRIS_TOKEN = os.getenv("HRIS_TOKEN")
 QUADSEARCH_BASE_URL = os.getenv("QUADSEARCH_BASE_URL")
 QUADSEARCH_API_KEY = os.getenv("QUADSEARCH_API_KEY")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME")
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 response = ResponseHelper()
@@ -41,7 +40,6 @@ response = ResponseHelper()
 @router.get("")
 async def get_chats(
     request: Request,
-    # user_id: int,
     page: int = 1,
     limit: int = 20,
     db: Session = Depends(get_db),
@@ -141,14 +139,12 @@ async def invoke_agent(
 
     # Create agent dependencies
     agent_deps = AgentDeps(
-        hris_base_url=HRIS_BASE_URL,
-        hris_token=HRIS_TOKEN,
         quadsearch_base_url=QUADSEARCH_BASE_URL,
         quadsearch_api_key=QUADSEARCH_API_KEY,
-        collection_name="smartbuddy_faq"
+        collection_name=COLLECTION_NAME
     )
 
-    agent_response = await execute_ebuddy_agent(
+    agent_response = await execute_agent(
         user=user, user_message=user_message, messages=history, agent_deps=agent_deps)
     logger.info(f"Agent response: {agent_response}")
 

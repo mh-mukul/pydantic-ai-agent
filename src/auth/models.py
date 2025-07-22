@@ -18,7 +18,6 @@ class User(AbstractBase):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
-    employee_id = Column(String(50), nullable=True, unique=True)
     email = Column(String(100), nullable=True, unique=True)
     phone = Column(String(15), nullable=False, unique=True)
     password = Column(String(255), nullable=False)

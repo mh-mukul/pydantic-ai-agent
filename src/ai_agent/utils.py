@@ -20,11 +20,9 @@ from src.ai_agent.models import ChatHistory
 # Agent dependencies
 @dataclass
 class AgentDeps:
-    hris_base_url: str
-    hris_token: str
     quadsearch_base_url: str
     quadsearch_api_key: str
-    collection_name: str = "smartbuddy_faq"
+    collection_name: str
 
 
 # Fetch conversation between user and AI of a specific session
