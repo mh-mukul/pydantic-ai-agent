@@ -15,7 +15,8 @@ from src.auth.exceptions import APIKeyException, JWTException
 from src.helpers import init_http_client, close_http_client
 
 from src.auth import routes as auth_routes
-from src.ai_agent import routes as chat_routes
+from src.ai_agent.routes import chat as chat_routes
+from src.ai_agent.routes import chat_share as share_routes
 
 load_dotenv()
 
@@ -58,6 +59,7 @@ app.add_exception_handler(JWTException, jwt_exception_handler)
 # Include routes
 app.include_router(auth_routes.router, prefix="/api/v1")
 app.include_router(chat_routes.router, prefix="/api/v1")
+app.include_router(share_routes.router, prefix="/api/v1")
 
 
 @app.get("/")
