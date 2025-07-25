@@ -1,6 +1,6 @@
-from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from datetime import datetime, timezone
+from pydantic import BaseModel, Field, field_validator
 
 
 class ChatInvoke(BaseModel):
@@ -14,7 +14,14 @@ class ChatGet(BaseModel):
     user_id: int
     message: dict
     date_time: datetime
-    chat_metadata: Optional[dict] = None
+    chat_metadata: dict | None = None
+
+    @field_validator('date_time', mode='before')
+    @classmethod
+    def ensure_datetime_has_timezone(cls, v):
+        if isinstance(v, datetime) and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
 
     class Config:
         from_attributes = True
