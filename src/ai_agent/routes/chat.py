@@ -12,7 +12,7 @@ from src.helpers import ResponseHelper
 from src.auth.dependencies import get_current_user
 
 from src.auth.models import User
-from src.ai_agent.models import ChatHistory
+from src.ai_agent.models import ChatHistory, get_message_type_expr
 from src.ai_agent.schemas import (
     ChatInvoke,
     ChatGet,
@@ -45,12 +45,14 @@ async def get_chats(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    dialect = db.bind.dialect.name
+    message_type_expr = get_message_type_expr(dialect)
     # Subquery to get the maximum id (last message) per session for the user
     subquery = (
         db.query(func.max(ChatHistory.id).label("max_id"))
         .filter(
             ChatHistory.user_id == user.id,
-            ChatHistory.message["type"].astext == "human"
+            message_type_expr == "human"
         )
         .group_by(ChatHistory.session_id)
         .subquery()
