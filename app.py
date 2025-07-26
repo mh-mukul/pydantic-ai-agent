@@ -65,3 +65,8 @@ app.include_router(share_routes.router, prefix="/api/v1")
 @app.get("/")
 async def root():
     return {"status": 200, "message": "Server is up and running!", "data": "Made with ❤️"}
+
+
+@app.get("/health", include_in_schema=False)
+def health():
+    return {"status": "ok"}

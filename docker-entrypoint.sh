@@ -1,16 +1,23 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e  # Exit immediately if a command exits with a non-zero status
+log() {
+  echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"
+}
 
-echo "Updating and installing packages..."
+# 1) Run migrations
+log "Migrating database..."
+alembic upgrade head
 
-chmod 644 /etc/resolv.conf
+# 2) Create superuser if not exists
+log "Creating superuser if not exists..."
+python cli.py create_superuser \
+    --name "Admin" \
+    --email "${SUPERUSER_EMAIL:-admin@gmail.com}" \
+    --phone "01700000000" \
+    --password "${SUPERUSER_PASSWORD:-admin}" \
+    --check_exist True
 
-# Update and install required system packages
-apt-get update && apt-get install -y \
-    nano \
-    && rm -rf /var/lib/apt/lists/*
-
-echo "Entrypoint script finished. Starting application..."
-
+# 3) Finally, exec the passed CMD (e.g., uvicorn)
+log "Starting application..."
 exec "$@"

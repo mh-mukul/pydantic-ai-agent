@@ -1,20 +1,29 @@
 services:
   # FastAPI app service
-  fastapi_backend:
+  chatbot_backend:
     build: .
-    container_name: fastapi_backend
-    image: fastapi_backend
+    container_name: chatbot_backend
+    image: chatbot_backend
     restart: always
     ports:
       - "${DOCKER_PORT:-8001}:8001"
+    env_file:
+      - .env
     environment:
-      - TZ=Asia/Dhaka
+      - TZ=${DEFAULT_TIMEZONE:-Asia/Dhaka}
+      - SUPERUSER_EMAIL=${SUPERUSER_EMAIL:-admin@gmail.com}
+      - SUPERUSER_PASSWORD=${SUPERUSER_PASSWORD:-admin}
     volumes:
       - ${LOG_DIR}:/app/${LOG_DIR}
       - ./:/app
     networks:
       - custom-network
     command: uvicorn app:app --host 0.0.0.0 --port 8001 --workers 4 --timeout-keep-alive 60
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 networks:
   custom-network:

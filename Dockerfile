@@ -1,20 +1,55 @@
-FROM python:3.10-slim
+FROM python:3.10-slim AS build
+
+# metadata labels
+LABEL maintainer="mukulmehedy@gmail.com" \
+    version="1.0" \
+    description="Chatbot backend"
 
 WORKDIR /app
 
-# Copy only requirements.txt first to leverage caching
-COPY requirements.txt /app/
+# 1) Copy and install system deps in one layer
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    nano \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies before copying source code to prevent cache busting
+# 2) Install Python deps
+COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir -r /app/requirements.txt
+    && pip install --no-cache-dir -r requirements.txt
 
-# Copy only necessary application files (avoid copying unnecessary files)
-COPY . /app/
+# 3) Copy application
+COPY . .
 
-# Copy the entrypoint script separately and ensure it has execution permissions
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
+# 4) Create a non-root user for runtime
+RUN useradd --create-home --shell /bin/bash appuser \
+    && chown -R appuser:appuser /app
 
-# Set the entrypoint
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+# ----------------------------------------------------------
+
+FROM python:3.10-slim AS runtime
+
+WORKDIR /app
+
+# Copy installed Python libs
+COPY --from=build /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+# Copy CLI tools (e.g., alembic, uvicorn, gunicorn)
+COPY --from=build /usr/local/bin /usr/local/bin
+# Copy application code
+COPY --from=build /app /app
+
+# Recreate the appuser in this stage
+RUN useradd --create-home --shell /bin/bash appuser \
+    && chown -R appuser:appuser /app
+
+# Install tini for process management
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tini \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+USER appuser
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/docker-entrypoint.sh"]
