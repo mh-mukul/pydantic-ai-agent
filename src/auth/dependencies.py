@@ -24,10 +24,8 @@ async def get_api_key(
             status=401, message="Authorization header missing")
 
     token = api_key.replace("Bearer ", "")
-    api_key_obj = db.query(ApiKey).filter(
-        ApiKey.key == token,
-        ApiKey.is_active == True,
-        ApiKey.is_deleted == False
+    api_key_obj = ApiKey.get_active(db).filter(
+        ApiKey.key == token
     ).first()
 
     if not api_key_obj:
@@ -47,7 +45,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
             401, message="Could not validate credentials")
 
     user_id = payload.get("user_id")
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user or user.is_deleted or not user.is_active:
+    user = User.get_active(db).filter(User.id == user_id).first()
+    if not user:
         raise JWTException(401, message="Invalid user")
     return user

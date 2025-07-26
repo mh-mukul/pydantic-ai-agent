@@ -24,7 +24,7 @@ async def share_session(
 ):
     # Share chat history for the session
     try:
-        chat_history = db.query(ChatHistory).filter(
+        chat_history = ChatHistory.get_active(db).filter(
             ChatHistory.session_id == session_id,
             ChatHistory.user_id == user.id
         ).first()
@@ -32,8 +32,11 @@ async def share_session(
         if not chat_history:
             return response.error_response(404, "Session not found")
 
-        chat_history.shared_to_public = True
-        db.commit()
+        if not chat_history.shared_to_public:
+            chat_history.shared_to_public = True
+            db.commit()
+        else:
+            pass  # Already shared, no action needed
     except Exception as e:
         logger.error(f"Error sharing session {session_id}: {e}")
         db.rollback()
@@ -49,14 +52,14 @@ async def get_shared_session(
     db: Session = Depends(get_db),
 ):
     # Get shared chat history for the session
-    chat_history = db.query(ChatHistory).filter(
+    chat_history = ChatHistory.get_active(db).filter(
         ChatHistory.session_id == session_id,
         ChatHistory.shared_to_public == True
     ).first()
 
     if not chat_history:
         return response.error_response(404, "Session not found or you don't have access")
-    
+
     chats = ChatHistory.get_active(db).filter(
         ChatHistory.session_id == session_id).order_by(ChatHistory.date_time.asc()).all()
 

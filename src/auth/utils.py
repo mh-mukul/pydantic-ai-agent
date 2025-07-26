@@ -83,8 +83,8 @@ def decode_refresh_token(db: Session, token: str) -> dict:
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if not db.query(UserToken).filter(
-                UserToken.jti == payload.get("jti"), UserToken.is_active == True, UserToken.is_deleted == False).first():
+        if not UserToken.get_active(db).filter(
+                UserToken.jti == payload.get("jti")).first():
             print("Token not found in database")
             raise JWTException(401, message="Invalid token")
         # Check if the token is blacklisted
@@ -118,7 +118,7 @@ def blacklist_token(token: str, db: Session):
             401, message="Invalid token")
     jti = payload.get("jti")
     check_blacklist_token(db=db, jti=jti)
-    db_token = db.query(UserToken).filter(
+    db_token = UserToken.get_active(db).filter(
         UserToken.jti == jti, UserToken.is_blacklisted == False).first()
     if db_token:
         db_token.is_blacklisted = True
@@ -129,7 +129,7 @@ def blacklist_token(token: str, db: Session):
 
 
 def check_blacklist_token(db: Session, jti: str):
-    db_token = db.query(UserToken).filter(
+    db_token = UserToken.get_active(db).filter(
         UserToken.jti == jti, UserToken.is_blacklisted == True).first()
     if db_token:
         print("Token is blacklisted")
@@ -139,7 +139,7 @@ def check_blacklist_token(db: Session, jti: str):
 
 
 def match_jti_from_db(db: Session, jti: str, user_id: int) -> Optional[UserToken]:
-    db_token = db.query(UserToken).filter(
+    db_token = UserToken.get_active(db).filter(
         UserToken.jti == jti, UserToken.user_id == user_id, UserToken.is_blacklisted == False).first()
     if not db_token:
         raise JWTException(401, message="Invalid token")
