@@ -27,6 +27,9 @@ COPY . .
 RUN useradd --create-home --shell /bin/bash appuser \
     && chown -R appuser:appuser /app
 
+# 5) Create directories for logs and ensure permissions
+RUN mkdir -p /app/logs && chown -R appuser:appuser /app/logs
+
 # ----------------------------------------------------------
 
 FROM python:3.10-slim AS runtime
