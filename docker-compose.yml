@@ -14,8 +14,7 @@ services:
       - SUPERUSER_EMAIL=${SUPERUSER_EMAIL:-admin@gmail.com}
       - SUPERUSER_PASSWORD=${SUPERUSER_PASSWORD:-admin}
     volumes:
-      - ${LOG_DIR}:/app/${LOG_DIR}
-      - ./:/app
+      - ${LOG_DIR:-./logs}:/app/${LOG_DIR:-./logs}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
