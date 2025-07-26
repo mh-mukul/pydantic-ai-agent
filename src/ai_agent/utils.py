@@ -84,16 +84,18 @@ def to_pydantic_ai_message(
         if not msg or not isinstance(msg, ChatHistory):
             logger.warning("Invalid message format or None encountered.")
             continue
+
         msg_data = msg.message
         msg_type = msg_data.get("type")
         msg_content = msg_data.get("content", "")
 
         if msg_type == "human":
-            messages.append(ModelRequest(
+            pydantic_messages.append(ModelRequest(
                 parts=[UserPromptPart(content=msg_content)]))
         else:
-            messages.append(ModelResponse(
+            pydantic_messages.append(ModelResponse(
                 parts=[TextPart(content=msg_content)]))
+
     return pydantic_messages
 
 
