@@ -23,13 +23,6 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
 # 3) Copy application
 COPY . .
 
-# 4) Create a non-root user for runtime
-RUN useradd --create-home --shell /bin/bash appuser \
-    && chown -R appuser:appuser /app
-
-# 5) Create directories for logs and ensure permissions
-RUN mkdir -p /app/logs && chown -R appuser:appuser /app/logs
-
 # ----------------------------------------------------------
 
 FROM python:3.10-slim AS runtime
@@ -43,16 +36,10 @@ COPY --from=build /usr/local/bin /usr/local/bin
 # Copy application code
 COPY --from=build /app /app
 
-# Recreate the appuser in this stage
-RUN useradd --create-home --shell /bin/bash appuser \
-    && chown -R appuser:appuser /app
-
 # Install tini for process management
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     curl \
     && rm -rf /var/lib/apt/lists/*
-
-USER appuser
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/docker-entrypoint.sh"]
