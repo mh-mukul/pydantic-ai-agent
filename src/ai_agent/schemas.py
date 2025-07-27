@@ -8,10 +8,27 @@ class ChatInvoke(BaseModel):
     query: str = Field(..., max_length=500)
 
 
-class ChatGet(BaseModel):
+class SessionGetResponse(BaseModel):
+    session_id: str = Field(..., max_length=100)
+    title: Optional[str] = Field(None, max_length=255)
+    user_id: int
+    date_time: datetime
+    shared_to_public: bool
+
+    @field_validator('date_time', mode='before')
+    @classmethod
+    def ensure_datetime_has_timezone(cls, v):
+        if isinstance(v, datetime) and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
+
+    class Config:
+        from_attributes = True
+
+
+class ChatGetResponse(BaseModel):
     id: int
     session_id: str = Field(..., max_length=100)
-    user_id: int
     message: dict
     date_time: datetime
     chat_metadata: dict | None = None
@@ -37,5 +54,13 @@ class Pagination(BaseModel):
 
 
 class ChatListResponse(BaseModel):
-    chats: List[ChatGet]
+    chats: List[ChatGetResponse]
     pagination: Pagination
+
+
+class SessionListResponse(BaseModel):
+    sessions: List[SessionGetResponse]
+    pagination: Pagination
+
+    class Config:
+        from_attributes = True

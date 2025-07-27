@@ -6,7 +6,7 @@ from sqlalchemy import engine_from_config, pool
 from configs.database import Base, SQLALCHEMY_DATABASE_URL
 
 from src.auth.models import ApiKey
-from src.ai_agent.models import ChatHistory
+from src.ai_agent.models import ChatSession, ChatMessage
 
 # Alembic Config object
 config = context.config

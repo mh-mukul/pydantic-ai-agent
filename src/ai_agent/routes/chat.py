@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
 
-from sqlalchemy.sql import func
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, Depends
@@ -12,19 +11,20 @@ from src.helpers import ResponseHelper
 from src.auth.dependencies import get_current_user
 
 from src.auth.models import User
-from src.ai_agent.models import ChatHistory, get_message_type_expr
+from src.ai_agent.models import ChatSession, ChatMessage
 from src.ai_agent.schemas import (
+    SessionGetResponse,
+    SessionListResponse,
     ChatInvoke,
-    ChatGet,
+    ChatGetResponse,
     Pagination,
-    ChatListResponse
 )
 
 from src.ai_agent.utils import (
     AgentDeps,
     fetch_conversation_history,
     save_conversation_history,
-    generate_session_id
+    get_new_session
 )
 from src.ai_agent.core import execute_agent
 
@@ -38,29 +38,15 @@ response = ResponseHelper()
 
 
 @router.get("")
-async def get_chats(
+async def get_sessions(
     request: Request,
     page: int = 1,
     limit: int = 20,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    dialect = db.bind.dialect.name
-    message_type_expr = get_message_type_expr(dialect)
-    # Subquery to get the maximum id (last message) per session for the user
-    subquery = (
-        db.query(func.max(ChatHistory.id).label("max_id"))
-        .filter(
-            ChatHistory.user_id == user.id,
-            message_type_expr == "human"
-        )
-        .group_by(ChatHistory.session_id)
-        .subquery()
-    )
-
-    # Main query: join with subquery to get actual records
-    query = ChatHistory.get_active(db).join(
-        subquery, ChatHistory.id == subquery.c.max_id
+    query = ChatSession.get_active(db).filter(
+        ChatSession.user_id == user.id
     )
 
     # Count total sessions
@@ -70,13 +56,13 @@ async def get_chats(
 
     # Fetch paginated results
     data_list = (
-        query.order_by(ChatHistory.date_time.desc())
+        query.order_by(ChatSession.date_time.desc())
         .offset(offset)
         .limit(limit)
         .all()
     )
 
-    chats = [ChatGet.model_validate(chat) for chat in data_list]
+    sessions = [SessionGetResponse.model_validate(chat) for chat in data_list]
 
     base_url = str(request.url.path)
     previous_page_url = f"{base_url}?page={page - 1}&limit={limit}" if page > 1 else None
@@ -90,8 +76,8 @@ async def get_chats(
         previous_page_url=previous_page_url,
         next_page_url=next_page_url
     )
-    resp_data = ChatListResponse(
-        chats=chats,
+    resp_data = SessionListResponse(
+        sessions=sessions,
         pagination=pagination_data
     )
 
@@ -99,16 +85,16 @@ async def get_chats(
 
 
 @router.get("/{session_id}")
-async def get_session(
+async def get_chats(
     session_id: str,
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    chats = ChatHistory.get_active(db).filter(
-        ChatHistory.session_id == session_id).order_by(ChatHistory.date_time.asc()).all()
+    chats = ChatMessage.get_active(db).filter(
+        ChatMessage.session_id == session_id).order_by(ChatMessage.date_time.asc()).all()
 
-    resp_data = [ChatGet.model_validate(chat) for chat in chats]
+    resp_data = [ChatGetResponse.model_validate(chat) for chat in chats]
 
     return response.success_response(200, "success", data=resp_data)
 
@@ -121,9 +107,14 @@ async def invoke_agent(
     user: User = Depends(get_current_user),
 ):
     if not data.session_id:
-        session_id = generate_session_id()
+        session_id = get_new_session(db=db, user=user)
     else:
         session_id = data.session_id
+        if not ChatSession.get_active(db).filter(
+            ChatSession.session_id == session_id,
+            ChatSession.user_id == user.id
+        ).first():
+            return response.error_response(404, "Session not found")
     user_message = data.query
     start_time = datetime.now(tz=timezone.utc)
 
@@ -133,7 +124,6 @@ async def invoke_agent(
     # store user's message
     await save_conversation_history(
         session_id=session_id,
-        user_id=user.id,
         message={"type": "human", "content": user_message},
         date_time=start_time,
         db=db
@@ -153,7 +143,6 @@ async def invoke_agent(
     # Store agent's response
     await save_conversation_history(
         session_id=session_id,
-        user_id=user.id,
         message={"type": "ai", "content": agent_response},
         date_time=datetime.now(tz=timezone.utc),
         metadata={"duration": (datetime.now(
@@ -179,9 +168,17 @@ async def delete_session(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    # Delete chat history for the session
+    # Delete chat session and its messages
     try:
-        db.query(ChatHistory).filter(ChatHistory.session_id == session_id).update(
+        db.query(ChatSession).filter(
+            ChatSession.session_id == session_id,
+            ChatSession.user_id == user.id
+        ).update(
+            {"is_deleted": True, "is_active": False},
+            synchronize_session=False
+        )
+
+        db.query(ChatMessage).filter(ChatMessage.session_id == session_id).update(
             {"is_deleted": True, "is_active": False},
             synchronize_session=False
         )

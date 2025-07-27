@@ -14,7 +14,7 @@ from pydantic_ai.providers.google_gla import GoogleGLAProvider
 from configs.logger import logger
 
 from src.auth.models import User
-from src.ai_agent.models import ChatHistory
+from src.ai_agent.models import ChatMessage
 from src.ai_agent.tools import custom_knowledge_tool
 from src.ai_agent.utils import AgentDeps, to_pydantic_ai_message
 
@@ -37,7 +37,7 @@ ai_agent = Agent(
 async def execute_agent(
     user: User,
     user_message: str,
-    messages: List[ChatHistory],
+    messages: List[ChatMessage],
     agent_deps: AgentDeps
 ) -> str:
     """
@@ -45,12 +45,12 @@ async def execute_agent(
     Args:
         user (User): The user object containing user details.
         user_message (str): The message from the user.
-        messages (List[ChatHistory]): The conversation history.
+        messages (List[ChatMessage]): The conversation history.
         agent_deps (AgentDeps): Dependencies required by the agent.
     Returns:
         str: The output from the agent.
     """
-    # Convert ChatHistory messages to Pydantic AI ModelMessage format
+    # Convert ChatMessage messages to Pydantic AI ModelMessage format
     history = to_pydantic_ai_message(messages)
     # Prepend system prompt message
     prompt = f"""You are a helpful AI Assistant.

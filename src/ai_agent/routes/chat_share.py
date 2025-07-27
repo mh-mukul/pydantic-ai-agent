@@ -7,9 +7,9 @@ from src.helpers import ResponseHelper
 from src.auth.dependencies import get_current_user
 
 from src.auth.models import User
-from src.ai_agent.models import ChatHistory
+from src.ai_agent.models import ChatSession, ChatMessage
 from src.ai_agent.schemas import (
-    ChatGet,
+    ChatGetResponse,
 )
 router = APIRouter(prefix="/chat", tags=["Share"])
 response = ResponseHelper()
@@ -24,9 +24,9 @@ async def share_session(
 ):
     # Share chat history for the session
     try:
-        chat_history = ChatHistory.get_active(db).filter(
-            ChatHistory.session_id == session_id,
-            ChatHistory.user_id == user.id
+        chat_history = ChatSession.get_active(db).filter(
+            ChatSession.session_id == session_id,
+            ChatSession.user_id == user.id
         ).first()
 
         if not chat_history:
@@ -52,17 +52,17 @@ async def get_shared_session(
     db: Session = Depends(get_db),
 ):
     # Get shared chat history for the session
-    chat_history = ChatHistory.get_active(db).filter(
-        ChatHistory.session_id == session_id,
-        ChatHistory.shared_to_public == True
+    chat_session = ChatSession.get_active(db).filter(
+        ChatSession.session_id == session_id,
+        ChatSession.shared_to_public == True
     ).first()
 
-    if not chat_history:
+    if not chat_session:
         return response.error_response(404, "Session not found or you don't have access")
 
-    chats = ChatHistory.get_active(db).filter(
-        ChatHistory.session_id == session_id).order_by(ChatHistory.date_time.asc()).all()
+    chats = ChatMessage.get_active(db).filter(
+        ChatMessage.session_id == session_id).order_by(ChatMessage.date_time.asc()).all()
 
-    resp_data = [ChatGet.model_validate(chat) for chat in chats]
+    resp_data = [ChatGetResponse.model_validate(chat) for chat in chats]
 
     return response.success_response(200, "Session retrieved successfully", data=resp_data)
