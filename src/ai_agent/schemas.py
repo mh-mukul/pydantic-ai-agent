@@ -29,9 +29,10 @@ class SessionGetResponse(BaseModel):
 class ChatGetResponse(BaseModel):
     id: int
     session_id: str = Field(..., max_length=100)
-    message: dict
+    type: str = Field(..., max_length=50)
+    message: str
     date_time: datetime
-    chat_metadata: dict | None = None
+    duration: Optional[float] = None
 
     @field_validator('date_time', mode='before')
     @classmethod

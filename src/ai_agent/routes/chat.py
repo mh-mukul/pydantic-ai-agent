@@ -124,7 +124,8 @@ async def invoke_agent(
     # store user's message
     await save_conversation_history(
         session_id=session_id,
-        message={"type": "human", "content": user_message},
+        type="human",
+        message=user_message,
         date_time=start_time,
         db=db
     )
@@ -143,10 +144,10 @@ async def invoke_agent(
     # Store agent's response
     await save_conversation_history(
         session_id=session_id,
-        message={"type": "ai", "content": agent_response},
+        type="ai",
+        message=agent_response,
         date_time=datetime.now(tz=timezone.utc),
-        metadata={"duration": (datetime.now(
-            tz=timezone.utc) - start_time).total_seconds()},
+        duration=(datetime.now(tz=timezone.utc) - start_time).total_seconds(),
         db=db
     )
     logger.info(
