@@ -3,7 +3,11 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, Field, field_validator
 
 
-class ChatInvoke(BaseModel):
+class ChatTitleRequest(BaseModel):
+    user_message: str = Field(..., max_length=500)
+
+
+class ChatInvokeRequest(BaseModel):
     session_id: str = Field(None, max_length=100)
     query: str = Field(..., max_length=500)
 

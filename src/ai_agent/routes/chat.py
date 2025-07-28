@@ -15,7 +15,8 @@ from src.ai_agent.models import ChatSession, ChatMessage
 from src.ai_agent.schemas import (
     SessionGetResponse,
     SessionListResponse,
-    ChatInvoke,
+    ChatInvokeRequest,
+    ChatTitleRequest,
     ChatGetResponse,
     Pagination,
 )
@@ -26,7 +27,7 @@ from src.ai_agent.utils import (
     save_conversation_history,
     get_new_session
 )
-from src.ai_agent.core import execute_agent
+from src.ai_agent.core import execute_agent, execute_metadata_agent
 
 load_dotenv()
 QUADSEARCH_BASE_URL = os.getenv("QUADSEARCH_BASE_URL")
@@ -84,7 +85,7 @@ async def get_sessions(
     return response.success_response(200, "success", data=resp_data)
 
 
-@router.get("/{session_id}")
+@router.get("/session")
 async def get_chats(
     session_id: str,
     request: Request,
@@ -93,6 +94,8 @@ async def get_chats(
 ):
     chats = ChatMessage.get_active(db).filter(
         ChatMessage.session_id == session_id).order_by(ChatMessage.date_time.asc()).all()
+    if not chats:
+        return response.error_response(404, "No messages found for this session")
 
     resp_data = [ChatGetResponse.model_validate(chat) for chat in chats]
 
@@ -101,7 +104,7 @@ async def get_chats(
 
 @router.post("")
 async def invoke_agent(
-    data: ChatInvoke,
+    data: ChatInvokeRequest,
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -162,7 +165,25 @@ async def invoke_agent(
     })
 
 
-@router.delete("/{session_id}")
+@router.get("/title")
+async def get_title(
+    request: Request,
+    data: ChatTitleRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not data.user_message:
+        return response.error_response(400, "User message is required")
+
+    title_response = await execute_metadata_agent(user_message=data.user_message)
+    logger.info(f"Title agent response: {title_response}")
+
+    return response.success_response(200, "Success", data={
+        "title": title_response
+    })
+
+
+@router.delete("")
 async def delete_session(
     session_id: str,
     request: Request,
@@ -171,13 +192,15 @@ async def delete_session(
 ):
     # Delete chat session and its messages
     try:
-        db.query(ChatSession).filter(
+        session = ChatSession.get_active(db).filter(
             ChatSession.session_id == session_id,
             ChatSession.user_id == user.id
-        ).update(
-            {"is_deleted": True, "is_active": False},
-            synchronize_session=False
-        )
+        ).first()
+        if not session:
+            return response.error_response(404, "Session not found")
+        session.is_deleted = True
+        session.is_active = False
+        db.add(session)
 
         db.query(ChatMessage).filter(ChatMessage.session_id == session_id).update(
             {"is_deleted": True, "is_active": False},
