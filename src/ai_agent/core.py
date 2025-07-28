@@ -83,7 +83,7 @@ async def execute_metadata_agent(
         str: The output from the metadata agent.
     """
     prompt = f"""You are a helpful AI Assistant. Your purpose is to extract a short title from the user's query.\n
-    If the query is not relevant for a title, respond with "New chat". You do not answer any query only response with the title.\n
+    If the query is not relevant for a title, respond with "New chat". You do not answer any query only response with the plain title.\n
     """
     metadata_agent = Agent(
         model=gemini_model,
@@ -91,7 +91,7 @@ async def execute_metadata_agent(
     )
     # Run the metadata agent with the user message
     result = await metadata_agent.run(user_prompt=user_message)
-    output = result.output
+    output = result.output.replace("\n", " ").strip()
     logger.info(f"Metadata agent run details: {result.all_messages()}")
 
     return output

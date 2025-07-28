@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class ChatTitleRequest(BaseModel):
     user_message: str = Field(..., max_length=500)
+    session_id: str
 
 
 class ChatInvokeRequest(BaseModel):

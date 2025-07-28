@@ -165,8 +165,8 @@ async def invoke_agent(
     })
 
 
-@router.get("/title")
-async def get_title(
+@router.post("/title")
+async def generate_title(
     request: Request,
     data: ChatTitleRequest,
     db: Session = Depends(get_db),
@@ -174,9 +174,29 @@ async def get_title(
 ):
     if not data.user_message:
         return response.error_response(400, "User message is required")
+    if not data.session_id:
+        return response.error_response(400, "Session ID is required")
+
+    # Check if session exists
+    session = ChatSession.get_active(db).filter(
+        ChatSession.session_id == data.session_id,
+        ChatSession.user_id == user.id
+    ).first()
+    if not session:
+        return response.error_response(404, "Session not found")
+
+    if session.title:
+        return response.success_response(200, "Success", data={
+            "title": session.title
+        })
 
     title_response = await execute_metadata_agent(user_message=data.user_message)
     logger.info(f"Title agent response: {title_response}")
+
+    # Store the title in the session
+    session.title = title_response
+    db.add(session)
+    db.commit()
 
     return response.success_response(200, "Success", data={
         "title": title_response
