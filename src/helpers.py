@@ -1,20 +1,33 @@
 from httpx import AsyncClient
+from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 
 
 class ResponseHelper:
-    def success_response(self, status_code, message, data=None):
-        return ({
-            "status": status_code,
-            "message": message,
-            "data": data
-        })
+    def success_response(self, status_code: int, message: str, data=None):
+        if isinstance(data, BaseModel):
+            data = data.model_dump()
+        return JSONResponse(
+            status_code=status_code,
+            content=jsonable_encoder({
+                "status": status_code,
+                "message": message,
+                "data": data
+            })
+        )
 
-    def error_response(self, status_code, message, data=None):
-        return ({
-            "status": status_code,
-            "message": message,
-            "data": data
-        })
+    def error_response(self, status_code: int, message: str, data=None):
+        if isinstance(data, BaseModel):
+            data = data.model_dump()
+        return JSONResponse(
+            status_code=status_code,
+            content=jsonable_encoder({
+                "status": status_code,
+                "message": message,
+                "data": data
+            })
+        )
 
 
 _http_client: AsyncClient | None = None
