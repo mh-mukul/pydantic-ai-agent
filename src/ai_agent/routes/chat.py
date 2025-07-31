@@ -124,15 +124,6 @@ async def invoke_agent(
     # Fetch conversation history
     history = await fetch_conversation_history(session_id, db=db)
 
-    # store user's message
-    await save_conversation_history(
-        session_id=session_id,
-        type="human",
-        message=user_message,
-        date_time=start_time,
-        db=db
-    )
-
     # Create agent dependencies
     agent_deps = AgentDeps(
         quadsearch_base_url=QUADSEARCH_BASE_URL,
@@ -144,11 +135,10 @@ async def invoke_agent(
         user=user, user_message=user_message, messages=history, agent_deps=agent_deps)
     logger.info(f"Agent response: {agent_response}")
 
-    # Store agent's response
-    await save_conversation_history(
+    chat_message = await save_conversation_history(
         session_id=session_id,
-        type="ai",
-        message=agent_response,
+        human_message=user_message,
+        ai_message=agent_response,
         date_time=datetime.now(tz=timezone.utc),
         duration=(datetime.now(tz=timezone.utc) - start_time).total_seconds(),
         db=db
@@ -157,12 +147,8 @@ async def invoke_agent(
         f"Chat history saved for session {session_id} and user {user.id}")
 
     # Return the response
-    return response.success_response(200, "Success", data={
-        "session_id": session_id,
-        "user_id": user.id,
-        "response": agent_response,
-        "duration": (datetime.now(tz=timezone.utc) - start_time).total_seconds()
-    })
+    resp_data = ChatGetResponse.model_validate(chat_message)
+    return response.success_response(200, "success", data=resp_data)
 
 
 @router.post("/title")

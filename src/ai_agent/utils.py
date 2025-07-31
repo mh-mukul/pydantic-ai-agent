@@ -50,8 +50,8 @@ async def fetch_conversation_history(session_id: str, limit: int = 10, db: Sessi
 # Save conversation history to DB
 async def save_conversation_history(
     session_id: str,
-    type: str,
-    message: str,
+    human_message: str,
+    ai_message: Optional[str] = None,
     date_time: datetime = datetime.now(),
     duration: Optional[float] = None,
     db: Session = Depends(get_db)
@@ -60,8 +60,8 @@ async def save_conversation_history(
     try:
         chat_history = ChatMessage(
             session_id=session_id,
-            type=type,
-            message=message,
+            human_message=human_message,
+            ai_message=ai_message,
             date_time=date_time,
             duration=duration
         )
@@ -85,12 +85,12 @@ def to_pydantic_ai_message(
             logger.warning("Invalid message format or None encountered.")
             continue
 
-        if msg.type == "human":
+        if msg.human_message:
             pydantic_messages.append(ModelRequest(
-                parts=[UserPromptPart(content=msg.message)]))
-        else:
+                parts=[UserPromptPart(content=msg.human_message)]))
+        if msg.ai_message:
             pydantic_messages.append(ModelResponse(
-                parts=[TextPart(content=msg.message)]))
+                parts=[TextPart(content=msg.ai_message)]))
 
     return pydantic_messages
 
@@ -104,7 +104,10 @@ def to_simple_message(
         if not msg or not isinstance(msg, ChatMessage):
             logger.warning("Invalid message format or None encountered.")
             continue
-        simple_messages.append({"type": msg.type, "content": msg.message})
+        if msg.human_message:
+            simple_messages.append({"type": 'human', "content": msg.human_message})
+        if msg.ai_message:
+            simple_messages.append({"type": 'ai', "content": msg.ai_message})
     return simple_messages
 
 

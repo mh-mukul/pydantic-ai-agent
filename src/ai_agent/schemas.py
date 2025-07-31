@@ -34,10 +34,12 @@ class SessionGetResponse(BaseModel):
 class ChatGetResponse(BaseModel):
     id: int
     session_id: str = Field(..., max_length=100)
-    type: str = Field(..., max_length=50)
-    message: str
+    human_message: str
+    ai_message: Optional[str] = None
     date_time: datetime
     duration: Optional[float] = None
+    positive_feedback: Optional[bool] = None
+    negative_feedback: Optional[bool] = None
 
     @field_validator('date_time', mode='before')
     @classmethod
