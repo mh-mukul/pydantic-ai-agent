@@ -72,3 +72,9 @@ class SessionListResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ChatFeedbackRequest(BaseModel):
+    id: int
+    positive_feedback: Optional[bool] = None
+    negative_feedback: Optional[bool] = None
