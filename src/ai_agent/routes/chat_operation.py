@@ -75,7 +75,7 @@ async def get_chats(
     user: User = Depends(get_current_user),
 ):
     chats = ChatMessage.get_active(db).filter(
-        ChatMessage.session_id == session_id).order_by(ChatMessage.date_time.asc()).all()
+        ChatMessage.session_id == session_id).order_by(ChatMessage.created_at.asc()).all()
     if not chats:
         return response.error_response(404, "No messages found for this session")
 

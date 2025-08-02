@@ -11,11 +11,12 @@ from src.helpers import ResponseHelper
 from src.auth.dependencies import get_current_user
 
 from src.auth.models import User
-from src.ai_agent.models import ChatSession
+from src.ai_agent.models import ChatSession, ChatMessage
 from src.ai_agent.schemas import (
     ChatInvokeRequest,
     ChatTitleRequest,
     ChatGetResponse,
+    ChatResubmitRequest,
 )
 
 from src.ai_agent.utils import (
@@ -46,16 +47,20 @@ async def invoke_agent(
         session_id = get_new_session(db=db, user=user)
     else:
         session_id = data.session_id
-        if not ChatSession.get_active(db).filter(
+        chat_session = ChatSession.get_active(db).filter(
             ChatSession.session_id == session_id,
             ChatSession.user_id == user.id
-        ).first():
+        ).first()
+        if not chat_session:
             return response.error_response(404, "Session not found")
+        chat_session.date_time = datetime.now(tz=timezone.utc)
+        db.add(chat_session)
+        db.commit()
     user_message = data.query
     start_time = datetime.now(tz=timezone.utc)
 
     # Fetch conversation history
-    history = await fetch_conversation_history(session_id, db=db)
+    history = await fetch_conversation_history(session_id=session_id, db=db)
 
     # Create agent dependencies
     agent_deps = AgentDeps(
@@ -120,3 +125,72 @@ async def generate_title(
     return response.success_response(200, "Success", data={
         "title": title_response
     })
+
+
+@router.post("/resubmit")
+async def resubmit(
+    data: ChatResubmitRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    chat = ChatMessage.get_active(db).join(ChatSession).filter(
+        ChatMessage.id == data.chat_id,
+        ChatSession.user_id == user.id
+    ).first()
+    if not chat:
+        return response.error_response(404, "Chat not found or you don't have access")
+
+    chat_session = ChatSession.get_active(db).filter(
+        ChatSession.session_id == data.session_id,
+        ChatSession.user_id == user.id
+    ).first()
+    if not chat_session:
+        return response.error_response(404, "Session not found or you don't have access")
+    chat_session.date_time = datetime.now(tz=timezone.utc)
+    db.add(chat_session)
+    db.commit()
+
+    user_message = data.query
+    start_time = datetime.now(tz=timezone.utc)
+
+    # soft delete all messages after the current chat message for the session
+    ChatMessage.get_active(db).filter(
+        ChatMessage.session_id == chat.session_id,
+        ChatMessage.id > chat.id
+    ).update({"is_active": False, "is_deleted": True}, synchronize_session=False)
+    db.commit()
+
+    # Fetch conversation history
+    history = await fetch_conversation_history(session_id=data.session_id, fetch_until=chat.id, db=db)
+
+    # Create agent dependencies
+    agent_deps = AgentDeps(
+        quadsearch_base_url=QUADSEARCH_BASE_URL,
+        quadsearch_api_key=QUADSEARCH_API_KEY,
+        collection_name=COLLECTION_NAME
+    )
+
+    agent_response = await execute_agent(
+        user=user, user_message=user_message, messages=history, agent_deps=agent_deps)
+    logger.info(f"Agent response: {agent_response}")
+
+    chat.human_message = user_message
+    chat.ai_message = agent_response
+    chat.date_time = datetime.now(tz=timezone.utc)
+    chat.duration = (datetime.now(tz=timezone.utc) -
+                     start_time).total_seconds()
+    chat.positive_feedback = False
+    chat.negative_feedback = False
+
+    # Save the updated chat message
+    db.add(chat)
+    db.commit()
+    db.refresh(chat)
+
+    logger.info(
+        f"Chat history saved for session {data.session_id} and user {user.id}")
+
+    # Return the response
+    resp_data = ChatGetResponse.model_validate(chat)
+    return response.success_response(200, "success", data=resp_data)

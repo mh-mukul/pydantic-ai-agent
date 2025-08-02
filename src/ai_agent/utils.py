@@ -27,14 +27,26 @@ class AgentDeps:
 
 
 # Fetch conversation between user and AI of a specific session
-async def fetch_conversation_history(session_id: str, limit: int = 10, db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
+async def fetch_conversation_history(
+        session_id: str,
+        fetch_until: int = None,
+        limit: int = 10,
+        db: Session = Depends(get_db)
+) -> List[Dict[str, Any]]:
     """Fetch conversation history from DB."""
     try:
-        query = ChatMessage.get_active(db)
+        if fetch_until:
+            query = ChatMessage.get_active(db).filter(
+                ChatMessage.session_id == session_id,
+                ChatMessage.id < fetch_until
+            )
+        else:
+            query = ChatMessage.get_active(db).filter(
+                ChatMessage.session_id == session_id
+            )
         data = (
             query
-            .filter(ChatMessage.session_id == session_id)
-            .order_by(ChatMessage.date_time.desc())
+            .order_by(ChatMessage.created_at.desc())
             .limit(limit)
             .all()
         )
@@ -105,7 +117,8 @@ def to_simple_message(
             logger.warning("Invalid message format or None encountered.")
             continue
         if msg.human_message:
-            simple_messages.append({"type": 'human', "content": msg.human_message})
+            simple_messages.append(
+                {"type": 'human', "content": msg.human_message})
         if msg.ai_message:
             simple_messages.append({"type": 'ai', "content": msg.ai_message})
     return simple_messages

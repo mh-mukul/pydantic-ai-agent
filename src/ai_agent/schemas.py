@@ -13,6 +13,12 @@ class ChatInvokeRequest(BaseModel):
     query: str = Field(..., max_length=500)
 
 
+class ChatResubmitRequest(BaseModel):
+    chat_id: int
+    session_id: str = Field(..., max_length=100)
+    query: str = Field(..., max_length=500)
+
+
 class SessionGetResponse(BaseModel):
     session_id: str = Field(..., max_length=100)
     title: Optional[str] = Field(None, max_length=255)
