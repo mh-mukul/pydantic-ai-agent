@@ -67,6 +67,24 @@ async def get_sessions(
     return response.success_response(200, "success", data=resp_data)
 
 
+@router.get("/search")
+async def search_sessions(
+    request: Request,
+    query: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    search_query = f"%{query}%"
+    sessions = ChatSession.get_active(db).filter(
+        ChatSession.user_id == user.id,
+        ChatSession.title.ilike(search_query)
+    ).order_by(ChatSession.date_time.desc()).limit(20).all()
+
+    resp_data = [SessionGetResponse.model_validate(chat) for chat in sessions]
+
+    return response.success_response(200, "success", data=resp_data)
+
+
 @router.get("/session")
 async def get_chats(
     session_id: str,
