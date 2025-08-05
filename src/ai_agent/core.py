@@ -1,7 +1,9 @@
 import os
+import json
 from typing import List
-from datetime import datetime
 from dotenv import load_dotenv
+from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 
 from ddgs import DDGS
 from pydantic_ai import Agent
@@ -17,8 +19,9 @@ from configs.logger import logger
 
 from src.auth.models import User
 from src.ai_agent.models import ChatMessage
+from src.ai_agent.schemas import ChatGetResponse
 from src.ai_agent.tools import custom_knowledge_tool
-from src.ai_agent.utils import AgentDeps, to_pydantic_ai_message
+from src.ai_agent.utils import AgentDeps, to_pydantic_ai_message, save_conversation_history
 
 # Load environment variables from .env file
 load_dotenv()
@@ -37,32 +40,40 @@ ai_agent = Agent(
 
 
 async def execute_agent(
-    user_name: str,
+    user: User,
     user_message: str,
     messages: List[ChatMessage],
     agent_deps: AgentDeps,
-    stream: bool = False
+    stream: bool = False,
+    sse_mode: bool = False,
+    session_id: str = None,
+    chat: ChatMessage = None,
+    db: Session = None,
+    start_time: datetime = None
 ):
     """
-    Execute the agent with the provided user info and message history.
+    Execute the AI agent with the provided user message and conversation history.
     Args:
-        user_name (str): The name of the user.
+        user (User): The user object.
         user_message (str): The message from the user.
-        messages (List[ChatMessage]): The conversation history.
-        agent_deps (AgentDeps): Dependencies required by the agent.
-        stream (bool): Whether to stream the output. Defaults to False.
+        messages (List[ChatMessage]): Conversation history.
+        agent_deps (AgentDeps): Dependencies for the agent.
+        stream (bool): Whether to stream the response.
+        sse_mode (bool): Whether to use Server-Sent Events mode.
+        session_id (str): The session ID for the chat.
+        chat (ChatMessage): Optional existing chat message to update.
+        db (Session): Database session for saving chat history.
+        start_time (datetime): Start time for measuring duration.
     Returns:
-        If stream=True: async generator yielding ONLY new string chunks
-        If stream=False: str containing the complete output
+        str or generator: The output from the agent or a generator for streaming responses.
     """
-    # Convert ChatMessage messages to Pydantic AI ModelMessage format
+    # Convert ChatMessage objects to Pydantic AI message format
     history = to_pydantic_ai_message(messages)
 
-    # Prepend system prompt message
     prompt = f"""You are a helpful AI Assistant.
 
     ## Important Instructions:
-    - ALWAYS address the user by name. User's name is {user_name}.
+    - ALWAYS address the user by name. User's name is {user.name}.
     - Use the duckduckgo_search_tool to search the web and get relevant information.
     - Today's date is: {datetime.now().strftime('%Y-%m-%d')} & today is {datetime.now().strftime('%A')}.
     """
@@ -71,18 +82,57 @@ async def execute_agent(
 
     if stream:
         async def generator():
+            full_output = ""
+            prev_len = 0
             async with ai_agent.run_stream(
                 user_prompt=user_message,
                 message_history=messages_with_prompt,
                 deps=agent_deps
             ) as streamed_result:
-                prev_len = 0
                 async for partial_text in streamed_result.stream_text():
-                    # Only send the new portion to avoid duplication
+                    # Delta logic
                     new_chunk = partial_text[prev_len:]
                     prev_len = len(partial_text)
-                    if new_chunk:
+                    if not new_chunk:
+                        continue
+
+                    full_output += new_chunk
+                    if sse_mode:
+                        yield f"event: chunk\ndata: {json.dumps({'text': new_chunk})}\n\n"
+                    else:
                         yield new_chunk
+
+            # Only save + send done event in SSE mode
+            if sse_mode and db and session_id:
+                if not chat:
+                    chat_message = await save_conversation_history(
+                        session_id=session_id,
+                        human_message=user_message,
+                        ai_message=full_output,
+                        date_time=datetime.now(tz=timezone.utc),
+                        duration=(datetime.now(tz=timezone.utc) -
+                                  start_time).total_seconds() if start_time else None,
+                        db=db
+                    )
+                else:
+                    chat.human_message = user_message
+                    chat.ai_message = full_output
+                    chat.date_time = datetime.now(tz=timezone.utc)
+                    chat.duration = (datetime.now(
+                        tz=timezone.utc) - start_time).total_seconds() if start_time else None
+                    chat.positive_feedback = False
+                    chat.negative_feedback = False
+                    db.add(chat)
+                    db.commit()
+                    db.refresh(chat)
+                    chat_message = chat
+                done_payload = {
+                    "status": 200,
+                    "message": "success",
+                    "data": ChatGetResponse.model_validate(chat_message).model_dump(mode="json")
+                }
+                yield f"event: done\ndata: {json.dumps(done_payload)}\n\n"
+
         return generator()
 
     else:

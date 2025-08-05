@@ -60,54 +60,38 @@ async def invoke_agent(
 
     user_message = data.query
     start_time = datetime.now(tz=timezone.utc)
-
-    # Fetch conversation history
     history = await fetch_conversation_history(session_id=session_id, db=db)
 
-    # Create agent dependencies
     agent_deps = AgentDeps(
         quadsearch_base_url=QUADSEARCH_BASE_URL,
         quadsearch_api_key=QUADSEARCH_API_KEY,
         collection_name=COLLECTION_NAME
     )
-    user_name = user.name
+
     if data.stream:
-        # Streaming mode
-        async def stream_and_save():
-            full_output = ""
-            async for chunk in await execute_agent(
-                user_name=user_name,
+        return StreamingResponse(
+            await execute_agent(
+                user=user,
                 user_message=user_message,
                 messages=history,
                 agent_deps=agent_deps,
-                stream=True
-            ):
-                full_output += chunk
-                yield chunk
-
-            await save_conversation_history(
+                stream=True,
+                sse_mode=True,
                 session_id=session_id,
-                human_message=user_message,
-                ai_message=full_output,
-                date_time=datetime.now(tz=timezone.utc),
-                duration=(datetime.now(tz=timezone.utc) -
-                          start_time).total_seconds(),
-                db=db
-            )
-
-        return StreamingResponse(stream_and_save(), media_type="text/plain")
+                db=db,
+                start_time=start_time
+            ),
+            media_type="text/event-stream"
+        )
 
     else:
-        # Non-streaming mode
         agent_response = await execute_agent(
-            user_name=user.name,
+            user=user,
             user_message=user_message,
             messages=history,
             agent_deps=agent_deps,
             stream=False
         )
-        logger.info(f"Agent response: {agent_response}")
-
         chat_message = await save_conversation_history(
             session_id=session_id,
             human_message=user_message,
@@ -117,9 +101,6 @@ async def invoke_agent(
                       start_time).total_seconds(),
             db=db
         )
-        logger.info(
-            f"Chat history saved for session {session_id} and user {user.id}")
-
         resp_data = ChatGetResponse.model_validate(chat_message)
         return response.success_response(200, "success", data=resp_data)
 
@@ -206,26 +187,43 @@ async def resubmit(
         collection_name=COLLECTION_NAME
     )
 
-    agent_response = await execute_agent(
-        user_name=user.name, user_message=user_message, messages=history, agent_deps=agent_deps)
-    logger.info(f"Agent response: {agent_response}")
+    if data.stream:
+        return StreamingResponse(
+            await execute_agent(
+                user=user,
+                user_message=user_message,
+                messages=history,
+                agent_deps=agent_deps,
+                stream=True,
+                sse_mode=True,
+                session_id=data.session_id,
+                chat=chat,
+                db=db,
+                start_time=start_time
+            ),
+            media_type="text/event-stream"
+        )
+    else:
+        agent_response = await execute_agent(
+            user=user, user_message=user_message, messages=history, agent_deps=agent_deps)
+        logger.info(f"Agent response: {agent_response}")
 
-    chat.human_message = user_message
-    chat.ai_message = agent_response
-    chat.date_time = datetime.now(tz=timezone.utc)
-    chat.duration = (datetime.now(tz=timezone.utc) -
-                     start_time).total_seconds()
-    chat.positive_feedback = False
-    chat.negative_feedback = False
+        chat.human_message = user_message
+        chat.ai_message = agent_response
+        chat.date_time = datetime.now(tz=timezone.utc)
+        chat.duration = (datetime.now(tz=timezone.utc) -
+                         start_time).total_seconds()
+        chat.positive_feedback = False
+        chat.negative_feedback = False
 
-    # Save the updated chat message
-    db.add(chat)
-    db.commit()
-    db.refresh(chat)
+        # Save the updated chat message
+        db.add(chat)
+        db.commit()
+        db.refresh(chat)
 
-    logger.info(
-        f"Chat history saved for session {data.session_id} and user {user.id}")
+        logger.info(
+            f"Chat history saved for session {data.session_id} and user {user.id}")
 
-    # Return the response
-    resp_data = ChatGetResponse.model_validate(chat)
-    return response.success_response(200, "success", data=resp_data)
+        # Return the response
+        resp_data = ChatGetResponse.model_validate(chat)
+        return response.success_response(200, "success", data=resp_data)
