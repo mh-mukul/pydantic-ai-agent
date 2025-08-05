@@ -3,6 +3,7 @@ from typing import List
 from datetime import datetime
 from dotenv import load_dotenv
 
+from ddgs import DDGS
 from pydantic_ai import Agent
 from pydantic_ai.messages import (
     ModelRequest,
@@ -10,6 +11,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models.gemini import GeminiModel
 from pydantic_ai.providers.google_gla import GoogleGLAProvider
+from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool
 
 from configs.logger import logger
 
@@ -30,7 +32,7 @@ gemini_model = GeminiModel(
 # Initialize the agent with the Gemini model and tools
 ai_agent = Agent(
     model=gemini_model,
-    tools=[custom_knowledge_tool]
+    tools=[duckduckgo_search_tool(duckduckgo_client=DDGS(), max_results=5)],
 )
 
 
@@ -57,9 +59,8 @@ async def execute_agent(
 
     ## Important Instructions:
     - ALWAYS address the user by name. User's name is {user.name}.
-    - Use the custom_knowledge_tool to answer users queries when needed.
+    - Use the duckduckgo_search_tool to search the web and get relevant information.
     - Today's date is: {datetime.now().strftime('%Y-%m-%d')} & today is {datetime.now().strftime('%A')}.
-    - NEVER talk about your tools & it's usage or your data retrieval process.
     """
     # Prepend system prompt message
     system_msg = ModelRequest(parts=[SystemPromptPart(content=prompt)])
