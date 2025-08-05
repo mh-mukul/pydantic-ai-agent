@@ -11,6 +11,7 @@ class ChatTitleRequest(BaseModel):
 class ChatInvokeRequest(BaseModel):
     session_id: str = Field(None, max_length=100)
     query: str = Field(..., max_length=500)
+    stream: Optional[bool] = False
 
 
 class ChatResubmitRequest(BaseModel):

@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, Depends
+from fastapi.responses import StreamingResponse
 
 from configs.logger import logger
 from configs.database import get_db
@@ -56,6 +57,7 @@ async def invoke_agent(
         chat_session.date_time = datetime.now(tz=timezone.utc)
         db.add(chat_session)
         db.commit()
+
     user_message = data.query
     start_time = datetime.now(tz=timezone.utc)
 
@@ -68,25 +70,58 @@ async def invoke_agent(
         quadsearch_api_key=QUADSEARCH_API_KEY,
         collection_name=COLLECTION_NAME
     )
+    user_name = user.name
+    if data.stream:
+        # Streaming mode
+        async def stream_and_save():
+            full_output = ""
+            async for chunk in await execute_agent(
+                user_name=user_name,
+                user_message=user_message,
+                messages=history,
+                agent_deps=agent_deps,
+                stream=True
+            ):
+                full_output += chunk
+                yield chunk
 
-    agent_response = await execute_agent(
-        user=user, user_message=user_message, messages=history, agent_deps=agent_deps)
-    logger.info(f"Agent response: {agent_response}")
+            await save_conversation_history(
+                session_id=session_id,
+                human_message=user_message,
+                ai_message=full_output,
+                date_time=datetime.now(tz=timezone.utc),
+                duration=(datetime.now(tz=timezone.utc) -
+                          start_time).total_seconds(),
+                db=db
+            )
 
-    chat_message = await save_conversation_history(
-        session_id=session_id,
-        human_message=user_message,
-        ai_message=agent_response,
-        date_time=datetime.now(tz=timezone.utc),
-        duration=(datetime.now(tz=timezone.utc) - start_time).total_seconds(),
-        db=db
-    )
-    logger.info(
-        f"Chat history saved for session {session_id} and user {user.id}")
+        return StreamingResponse(stream_and_save(), media_type="text/plain")
 
-    # Return the response
-    resp_data = ChatGetResponse.model_validate(chat_message)
-    return response.success_response(200, "success", data=resp_data)
+    else:
+        # Non-streaming mode
+        agent_response = await execute_agent(
+            user_name=user.name,
+            user_message=user_message,
+            messages=history,
+            agent_deps=agent_deps,
+            stream=False
+        )
+        logger.info(f"Agent response: {agent_response}")
+
+        chat_message = await save_conversation_history(
+            session_id=session_id,
+            human_message=user_message,
+            ai_message=agent_response,
+            date_time=datetime.now(tz=timezone.utc),
+            duration=(datetime.now(tz=timezone.utc) -
+                      start_time).total_seconds(),
+            db=db
+        )
+        logger.info(
+            f"Chat history saved for session {session_id} and user {user.id}")
+
+        resp_data = ChatGetResponse.model_validate(chat_message)
+        return response.success_response(200, "success", data=resp_data)
 
 
 @router.post("/title")
@@ -172,7 +207,7 @@ async def resubmit(
     )
 
     agent_response = await execute_agent(
-        user=user, user_message=user_message, messages=history, agent_deps=agent_deps)
+        user_name=user.name, user_message=user_message, messages=history, agent_deps=agent_deps)
     logger.info(f"Agent response: {agent_response}")
 
     chat.human_message = user_message

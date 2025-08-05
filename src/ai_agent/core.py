@@ -23,7 +23,7 @@ from src.ai_agent.utils import AgentDeps, to_pydantic_ai_message
 # Load environment variables from .env file
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GOOGLE_GLA_API_KEY")
-GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.0-flash-001")
+GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
 
 gemini_model = GeminiModel(
     GEMINI_MODEL_NAME, provider=GoogleGLAProvider(api_key=GEMINI_API_KEY)
@@ -37,40 +37,62 @@ ai_agent = Agent(
 
 
 async def execute_agent(
-    user: User,
+    user_name: str,
     user_message: str,
     messages: List[ChatMessage],
-    agent_deps: AgentDeps
-) -> str:
+    agent_deps: AgentDeps,
+    stream: bool = False
+):
     """
     Execute the agent with the provided user info and message history.
     Args:
-        user (User): The user object containing user details.
+        user_name (str): The name of the user.
         user_message (str): The message from the user.
         messages (List[ChatMessage]): The conversation history.
         agent_deps (AgentDeps): Dependencies required by the agent.
+        stream (bool): Whether to stream the output. Defaults to False.
     Returns:
-        str: The output from the agent.
+        If stream=True: async generator yielding ONLY new string chunks
+        If stream=False: str containing the complete output
     """
     # Convert ChatMessage messages to Pydantic AI ModelMessage format
     history = to_pydantic_ai_message(messages)
+
     # Prepend system prompt message
     prompt = f"""You are a helpful AI Assistant.
 
     ## Important Instructions:
-    - ALWAYS address the user by name. User's name is {user.name}.
+    - ALWAYS address the user by name. User's name is {user_name}.
     - Use the duckduckgo_search_tool to search the web and get relevant information.
     - Today's date is: {datetime.now().strftime('%Y-%m-%d')} & today is {datetime.now().strftime('%A')}.
     """
-    # Prepend system prompt message
     system_msg = ModelRequest(parts=[SystemPromptPart(content=prompt)])
     messages_with_prompt = [system_msg] + history
-    # Run the agent with message history
-    result = await ai_agent.run(user_prompt=user_message, message_history=messages_with_prompt, deps=agent_deps)
-    output = result.output
-    logger.info(f"Agent run details: {result.all_messages()}")
 
-    return output
+    if stream:
+        async def generator():
+            async with ai_agent.run_stream(
+                user_prompt=user_message,
+                message_history=messages_with_prompt,
+                deps=agent_deps
+            ) as streamed_result:
+                prev_len = 0
+                async for partial_text in streamed_result.stream_text():
+                    # Only send the new portion to avoid duplication
+                    new_chunk = partial_text[prev_len:]
+                    prev_len = len(partial_text)
+                    if new_chunk:
+                        yield new_chunk
+        return generator()
+
+    else:
+        result = await ai_agent.run(
+            user_prompt=user_message,
+            message_history=messages_with_prompt,
+            deps=agent_deps
+        )
+        logger.info(f"Agent run details: {result.all_messages()}")
+        return result.output
 
 
 async def execute_metadata_agent(
