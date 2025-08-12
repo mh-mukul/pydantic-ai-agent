@@ -74,7 +74,8 @@ async def execute_agent(
 
     ## Important Instructions:
     - ALWAYS address the user by name. User's name is {user.name}.
-    - Use the duckduckgo_search_tool to search the web and get relevant information.
+    - Use the duckduckgo_search_tool to search the web if you need up to date information on something.
+    - Include the source of search results in markdown format like this: `Source: [Source 1](https://www.source1.com/news/abc), [Source 2](https://www.source2.com/news/abc), etc`, if you use the duckduckgo_search_tool.
     - Today's date is: {datetime.now().strftime('%Y-%m-%d')} & today is {datetime.now().strftime('%A')}.
     """
     system_msg = ModelRequest(parts=[SystemPromptPart(content=prompt)])
