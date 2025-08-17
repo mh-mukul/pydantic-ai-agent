@@ -5,7 +5,7 @@ from fastapi.security.api_key import APIKeyHeader
 from fastapi.security import OAuth2PasswordBearer
 
 from configs.database import get_db
-from src.auth.utils import decode_access_token
+from src.auth.utils import decode_token
 from src.auth.exceptions import APIKeyException, JWTException
 
 from src.auth.models import ApiKey, User
@@ -36,7 +36,7 @@ async def get_api_key(
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
-        payload = decode_access_token(db, token)
+        payload = decode_token(db, token, token_type="access")
         user_id = payload.get('user_id')
         if not user_id:
             raise JWTException(401, message="Invalid token")

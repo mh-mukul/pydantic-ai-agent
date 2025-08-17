@@ -86,3 +86,8 @@ class ChatFeedbackRequest(BaseModel):
     id: int
     positive_feedback: Optional[bool] = None
     negative_feedback: Optional[bool] = None
+
+
+class EditTitleRequest(BaseModel):
+    session_id: str
+    title: str

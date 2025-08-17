@@ -1,7 +1,7 @@
 import os
 import jwt
-from dotenv import load_dotenv
 from typing import Optional
+from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
@@ -22,98 +22,88 @@ REFRESH_TOKEN_EXPIRE_MINUTES = int(
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def create_access_token(data: dict, jti: str, expires_delta: Optional[timedelta] = None) -> str:
+def create_token(db: Session, data: dict, jti: str, token_type: str, expires_delta: Optional[timedelta] = None) -> str:
     """
-    Create a JWT access token.
+    Create a JWT token (access or refresh).
+
+    Args:
+        db: Database session (required for refresh tokens)
+        data: Data to encode in the token
+        jti: JWT ID
+        token_type: Type of token ('access' or 'refresh')
+        expires_delta: Optional custom expiration time
+
+    Returns:
+        str: Encoded JWT token
     """
     to_encode = data.copy()
+
+    # Set expiration based on token type
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + \
-            timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire, "jti": jti, "type": "access"})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+        if token_type == "access":
+            expire = datetime.now(timezone.utc) + \
+                timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        else:
+            expire = datetime.now(timezone.utc) + \
+                timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
 
-
-def create_refresh_token(db: Session, data: dict, jti: str, expires_delta: Optional[timedelta] = None):
-    """
-    Create a JWT refresh token.
-    """
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + \
-            timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire, "jti": jti, "type": "refresh"})
+    to_encode.update({"exp": expire, "jti": jti, "type": token_type})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    # Save the refresh token to the database
-    user_token = UserToken(expires_at=expire,
-                           user_id=to_encode.get("user_id"), jti=jti)
-    db.add(user_token)
-    db.commit()
+
+    # Save refresh token to the database
+    if token_type == "refresh":
+        user_token = UserToken(expires_at=expire,
+                               user_id=to_encode.get("user_id"), jti=jti)
+        db.add(user_token)
+        db.commit()
 
     return encoded_jwt
 
 
-def decode_access_token(db: Session, token: str) -> dict:
+def decode_token(db: Session, token: str, token_type: str) -> dict:
     """
     Decode a JWT and validate it.
+
+    Args:
+        db: Database session
+        token: JWT token to decode
+        token_type: Type of token ('access' or 'refresh')
+
+    Returns:
+        dict: Decoded token payload
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") != "access":
+
+        # Check token type
+        if payload.get("type") != token_type:
             raise JWTException(401, message="Invalid token type")
 
+        # Check if token is blacklisted
         check_blacklist_token(db=db, jti=payload.get("jti"))
-        match_jti_from_db(db=db, jti=payload.get("jti"),
-                          user_id=payload.get("user_id"))
+
+        # Additional validation based on token type
+        if token_type == "access":
+            match_jti_from_db(db=db, jti=payload.get("jti"),
+                              user_id=payload.get("user_id"))
+        elif token_type == "refresh":
+            if not UserToken.get_active(db).filter(
+                    UserToken.jti == payload.get("jti")).first():
+                raise JWTException(401, message="Invalid token")
+
         return payload
     except jwt.ExpiredSignatureError:
         raise JWTException(401, message="Token has expired")
     except jwt.InvalidTokenError:
         raise JWTException(401, message="Invalid token")
-
-
-def decode_refresh_token(db: Session, token: str) -> dict:
-    """
-    Decode a JWT and validate it.
-    """
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if not UserToken.get_active(db).filter(
-                UserToken.jti == payload.get("jti")).first():
-            print("Token not found in database")
-            raise JWTException(401, message="Invalid token")
-        # Check if the token is blacklisted
-        check_blacklist_token(db=db, jti=payload.get("jti"))
-        if payload.get("type") != "refresh":
-            print("Invalid token type")
-            raise JWTException(401, message="Invalid token type")
-        return payload
-    except jwt.ExpiredSignatureError:
-        print("Token has expired")
-        raise JWTException(401, message="Token has expired")
-    except jwt.InvalidTokenError:
-        print("Invalid token 1")
-        raise JWTException(401, message="Invalid token")
-
-
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
 
 
 def blacklist_token(token: str, db: Session):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except jwt.PyJWTError:
-        print("Invalid token")
         raise JWTException(
             401, message="Invalid token")
     jti = payload.get("jti")
@@ -124,7 +114,6 @@ def blacklist_token(token: str, db: Session):
         db_token.is_blacklisted = True
         db.commit()
     else:
-        print("Token not found in database")
         raise JWTException(401, message="Invalid token")
 
 
@@ -132,7 +121,6 @@ def check_blacklist_token(db: Session, jti: str):
     db_token = UserToken.get_active(db).filter(
         UserToken.jti == jti, UserToken.is_blacklisted == True).first()
     if db_token:
-        print("Token is blacklisted")
         raise JWTException(401, message="Token has been blacklisted")
     else:
         return True
@@ -144,3 +132,11 @@ def match_jti_from_db(db: Session, jti: str, user_id: int) -> Optional[UserToken
     if not db_token:
         raise JWTException(401, message="Invalid token")
     return db_token
+
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)

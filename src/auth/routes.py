@@ -6,7 +6,7 @@ from configs.database import get_db
 from src.helpers import ResponseHelper
 from src.auth.dependencies import get_current_user
 from src.auth.utils import (
-    create_access_token, create_refresh_token, verify_password, blacklist_token, decode_refresh_token, hash_password
+    create_token, verify_password, blacklist_token, decode_token, hash_password
 )
 
 from src.auth.models import User
@@ -29,11 +29,12 @@ async def login(
         return response.error_response(403, message="Inactive user")
 
     jti = str(uuid.uuid4())
-    access_token = create_access_token(
-        data={"user_id": user.id, "phone": user.phone}, jti=jti)
-    refresh_token = create_refresh_token(
-        db=db,
-        data={"user_id": user.id, "phone": user.phone}, jti=jti)
+    access_token = create_token(
+        db=db, data={"user_id": user.id, "phone": user.phone}, jti=jti, token_type="access"
+    )
+    refresh_token = create_token(
+        db=db, data={"user_id": user.id, "phone": user.phone}, jti=jti, token_type="refresh"
+    )
 
     user_data = {
         "id": user.id,
@@ -60,8 +61,8 @@ async def refresh_token(
     """
     Refresh a token
     """
-    payload = decode_refresh_token(db, data.refresh_token)
-    access_token = create_access_token(
+    payload = decode_token(db, data.refresh_token, token_type="refresh")
+    access_token = create_token(
         data={"user_id": payload.get(
             "user_id"), "phone": payload.get("phone")},
         jti=payload.get("jti")

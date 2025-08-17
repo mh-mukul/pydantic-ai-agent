@@ -18,6 +18,7 @@ from src.ai_agent.schemas import (
     ChatTitleRequest,
     ChatGetResponse,
     ChatResubmitRequest,
+    EditTitleRequest,
 )
 
 from src.ai_agent.utils import (
@@ -141,6 +142,31 @@ async def generate_title(
     return response.success_response(200, "Success", data={
         "title": title_response
     })
+
+
+@router.post("/edit-title")
+async def edit_title(
+    request: Request,
+    data: EditTitleRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        session = ChatSession.get_active(db).filter(
+            ChatSession.session_id == data.session_id,
+            ChatSession.user_id == user.id
+        ).first()
+        if not session:
+            return response.error_response(404, "Session not found")
+
+        session.title = data.title
+        db.commit()
+    except Exception as e:
+        logger.error(f"Error editing title for session {data.session_id}: {e}")
+        db.rollback()
+        return response.error_response(500, "Failed to edit title")
+
+    return response.success_response(200, "Title edited successfully")
 
 
 @router.post("/resubmit")
