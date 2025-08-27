@@ -63,9 +63,11 @@ async def refresh_token(
     """
     payload = decode_token(db, data.refresh_token, token_type="refresh")
     access_token = create_token(
+        db=db,
         data={"user_id": payload.get(
             "user_id"), "phone": payload.get("phone")},
-        jti=payload.get("jti")
+        jti=payload.get("jti"),
+        token_type="access"
     )
 
     resp_data = {

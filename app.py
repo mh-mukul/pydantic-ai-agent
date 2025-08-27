@@ -37,6 +37,9 @@ app = FastAPI(
     redoc_url="/redoc" if DEBUG else None,  # Disable ReDoc
     openapi_url="/openapi.json" if DEBUG else None,  # Disable OpenAPI
     lifespan=lifespan,
+    swagger_ui_parameters={
+        "persistAuthorization": True
+    }
 )
 
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
@@ -48,6 +51,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add Bearer security scheme to the OpenAPI documentation
+app.swagger_ui_init_oauth = {
+    "usePkceWithAuthorizationCodeGrant": True,
+    "useBasicAuthenticationWithAccessCodeGrant": True
+}
 
 # Register the custom exception handlers
 app.add_exception_handler(RequestValidationError, validation_exception_handler)

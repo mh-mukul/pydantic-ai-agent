@@ -2,7 +2,7 @@ import jwt
 from sqlalchemy.orm import Session
 from fastapi import Depends, Security
 from fastapi.security.api_key import APIKeyHeader
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from configs.database import get_db
 from src.auth.utils import decode_token
@@ -11,7 +11,8 @@ from src.auth.exceptions import APIKeyException, JWTException
 from src.auth.models import ApiKey, User
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+# Replace OAuth2PasswordBearer with HTTPBearer for proper Swagger UI display
+bearer_scheme = HTTPBearer(auto_error=False)
 api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
 
 
@@ -34,7 +35,11 @@ async def get_api_key(
     return api_key_obj
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme), db: Session = Depends(get_db)):
+    if credentials is None:
+        raise JWTException(401, message="Authorization header missing")
+
+    token = credentials.credentials
     try:
         payload = decode_token(db, token, token_type="access")
         user_id = payload.get('user_id')
